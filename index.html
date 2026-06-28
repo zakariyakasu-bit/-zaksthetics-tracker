@@ -12653,17 +12653,22 @@ function saveOfferStatuses(offers) {
 }
 
 // ── useSupabase hook — drop-in replacement for useLocalStorage ─
-function useSupabase(key, initialValue, remoteData) {
-  // remoteData: pre-loaded value from supaLoadAll (or undefined if not present)
-  var _useState149 = useState(function () {
-      return remoteData !== undefined ? remoteData : initialValue;
-    }),
+// readyRef: shared ref that becomes true after supaLoadAll completes
+// Without this gate, the hook writes INIT defaults to Supabase on first render,
+// overwriting real data before the load finishes.
+function useSupabase(key, initialValue, readyRef) {
+  var _useState149 = useState(initialValue),
     _useState150 = _slicedToArray(_useState149, 2),
     state = _useState150[0],
     setState = _useState150[1];
-
-  // Persist to Supabase whenever state changes
+  var isFirst = useRef(true);
   useEffect(function () {
+    // Skip the very first render (initial value) and skip if not loaded yet
+    if (isFirst.current) {
+      isFirst.current = false;
+      return;
+    }
+    if (readyRef && !readyRef.current) return;
     supaSet(key, state);
   }, [key, state]);
   function setValue(value) {
@@ -12701,14 +12706,14 @@ function App() {
     offers = _useState160[0],
     setOffers = _useState160[1];
   useEffect(function () {
-    return saveOfferStatuses(offers);
+    if (loadedRef.current) saveOfferStatuses(offers);
   }, [offers]);
   var _useState161 = useState(INIT_SALES),
     _useState162 = _slicedToArray(_useState161, 2),
     sales = _useState162[0],
     setSales = _useState162[1];
   useEffect(function () {
-    supaSet("zak_sales", sales);
+    if (loadedRef.current) supaSet("zak_sales", sales);
   }, [sales]);
   var _useState163 = useState(function () {
       return migrateToUnifiedStock();
@@ -12717,17 +12722,18 @@ function App() {
     stock = _useState164[0],
     setStock = _useState164[1];
   useEffect(function () {
-    supaSet("zak_stock", stock);
+    if (loadedRef.current) supaSet("zak_stock", stock);
   }, [stock]);
-  var _useSupabase = useSupabase("zak_bham_sales", [], undefined),
+  var loadedRef = useRef(false); // gates Supabase writes until after initial load
+  var _useSupabase = useSupabase("zak_bham_sales", [], loadedRef),
     _useSupabase2 = _slicedToArray(_useSupabase, 2),
     bhamSales = _useSupabase2[0],
     setBhamSales = _useSupabase2[1];
-  var _useSupabase3 = useSupabase("zak_colours", BASE_COLOURS, undefined),
+  var _useSupabase3 = useSupabase("zak_colours", BASE_COLOURS, loadedRef),
     _useSupabase4 = _slicedToArray(_useSupabase3, 2),
     colours = _useSupabase4[0],
     setColours = _useSupabase4[1];
-  var _useSupabase5 = useSupabase("zak_purchases", [], undefined),
+  var _useSupabase5 = useSupabase("zak_purchases", [], loadedRef),
     _useSupabase6 = _slicedToArray(_useSupabase5, 2),
     purchases = _useSupabase6[0],
     setPurchases = _useSupabase6[1];
@@ -12735,17 +12741,16 @@ function App() {
     _useState166 = _slicedToArray(_useState165, 2),
     salesPrefill = _useState166[0],
     setSalesPrefill = _useState166[1];
-  var _useSupabase7 = useSupabase("zak_customers", [], undefined),
+  var _useSupabase7 = useSupabase("zak_customers", [], loadedRef),
     _useSupabase8 = _slicedToArray(_useSupabase7, 2),
     customers = _useSupabase8[0],
     setCustomers = _useSupabase8[1];
-  var _useSupabase9 = useSupabase("zak_mappings", INIT_MAPPINGS, undefined),
+  var _useSupabase9 = useSupabase("zak_mappings", INIT_MAPPINGS, loadedRef),
     _useSupabase0 = _slicedToArray(_useSupabase9, 2),
     mappings = _useSupabase0[0],
     setMappings = _useSupabase0[1];
 
   // ── Load all data from Supabase on mount (single round-trip) ──
-  var loadedRef = useRef(false);
   useEffect(function () {
     if (loadedRef.current) return;
     loadedRef.current = true;
@@ -12810,6 +12815,7 @@ function App() {
       if (remote.zak_purchases) setPurchases(remote.zak_purchases);
       if (remote.zak_customers) setCustomers(remote.zak_customers);
       if (remote.zak_mappings) setMappings(remote.zak_mappings);
+      loadedRef.current = true; // now allow all useEffect writes to Supabase
       setLoading(false);
     });
   }, []);
