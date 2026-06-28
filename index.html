@@ -12774,36 +12774,58 @@ function App() {
         var fixedStock = remote.zak_stock;
         // ── One-time repair: fix over-marked sold items caused by old non-idempotent sync bug ──
         // Only runs once, flagged by zak_sync_repair_v1
-        if (!remote.zak_sync_repair_v2) {
-          var londonSales = (remote.zak_sales || []).filter(function (s) {
-            return (s.itemType === "drifit" || !s.itemType) && s.platform !== "Birms" && (s.status === "completed" || s.status === "pending_delivery");
+        if (!remote.zak_sync_repair_v3) {
+          // Two-direction repair: fixes both over-marked AND under-marked sold items
+          // Counts completed+pending+shipped sales as "gone" per colour+size
+          // Then aligns stock sold count to match exactly
+          var goneSales = (remote.zak_sales || []).filter(function (s) {
+            return (s.itemType === "drifit" || !s.itemType) && s.platform !== "Birms" && ["completed", "pending_delivery", "shipped"].includes(s.status);
           });
-          // Count how many sales exist per colour+size
           var salesCount = {};
-          londonSales.forEach(function (s) {
+          goneSales.forEach(function (s) {
             var k = normaliseColour(s.colour) + "-" + s.size;
             salesCount[k] = (salesCount[k] || 0) + 1;
           });
-          // For each colour+size, if stock has more sold items than sales, reset the excess to in_stock
           var repaired = _toConsumableArray(fixedStock);
-          var resetCount = {};
-          repaired.forEach(function (s, i) {
-            if (s.status === "sold" && s.location === "you" && !s.problem) {
-              var k = normaliseColour(s.colour) + "-" + s.size;
-              var allowed = salesCount[k] || 0;
-              var soFar = resetCount[k] || 0;
-              if (soFar >= allowed) {
-                repaired[i] = _objectSpread(_objectSpread({}, s), {}, {
+          // Get all colour+size keys from both stock and sales
+          var allKeys = new Set([].concat(_toConsumableArray(repaired.filter(function (s) {
+            return s.location === "you" && !s.problem && s.status === "sold";
+          }).map(function (s) {
+            return normaliseColour(s.colour) + "-" + s.size;
+          })), _toConsumableArray(Object.keys(salesCount))));
+          allKeys.forEach(function (k) {
+            var needed = salesCount[k] || 0;
+            var lastDash = k.lastIndexOf("-");
+            var col = k.slice(0, lastDash);
+            var sz = k.slice(lastDash + 1);
+            var soldIdxs = repaired.reduce(function (acc, s, i) {
+              if (s.location === "you" && !s.problem && s.status === "sold" && normaliseColour(s.colour) === col && s.size === sz) acc.push(i);
+              return acc;
+            }, []);
+            var have = soldIdxs.length;
+            if (have > needed) {
+              // Over-marked: reset excess to in_stock
+              soldIdxs.slice(needed).forEach(function (i) {
+                repaired[i] = _objectSpread(_objectSpread({}, repaired[i]), {}, {
                   status: "in_stock",
                   soldDate: null
                 });
-              } else {
-                resetCount[k] = (resetCount[k] || 0) + 1;
-              }
+              });
+            } else if (have < needed) {
+              // Under-marked: mark extra in_stock items as sold
+              var instockIdxs = repaired.reduce(function (acc, s, i) {
+                if (s.location === "you" && !s.problem && s.status === "in_stock" && normaliseColour(s.colour) === col && s.size === sz) acc.push(i);
+                return acc;
+              }, []);
+              instockIdxs.slice(0, needed - have).forEach(function (i) {
+                repaired[i] = _objectSpread(_objectSpread({}, repaired[i]), {}, {
+                  status: "sold"
+                });
+              });
             }
           });
           fixedStock = repaired;
-          supaSet("zak_sync_repair_v2", true);
+          supaSet("zak_sync_repair_v3", true);
         }
         setStock(fixedStock);
       } else if (remote.zak_stock) {
