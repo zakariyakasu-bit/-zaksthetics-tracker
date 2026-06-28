@@ -12751,9 +12751,10 @@ function App() {
     setMappings = _useSupabase0[1];
 
   // ── Load all data from Supabase on mount (single round-trip) ──
+  var mountedRef = useRef(false); // separate guard to prevent double-load
   useEffect(function () {
-    if (loadedRef.current) return;
-    loadedRef.current = true;
+    if (mountedRef.current) return;
+    mountedRef.current = true;
     supaLoadAll().then(function (remote) {
       // Offers — merge INIT_OFFERS with stored statuses
       if (remote.zak_offer_statuses) setOffers(getMergedOffers(remote.zak_offer_statuses));
@@ -12773,7 +12774,7 @@ function App() {
         var fixedStock = remote.zak_stock;
         // ── One-time repair: fix over-marked sold items caused by old non-idempotent sync bug ──
         // Only runs once, flagged by zak_sync_repair_v1
-        if (!remote.zak_sync_repair_v1) {
+        if (!remote.zak_sync_repair_v2) {
           var londonSales = (remote.zak_sales || []).filter(function (s) {
             return (s.itemType === "drifit" || !s.itemType) && s.platform !== "Birms" && (s.status === "completed" || s.status === "pending_delivery");
           });
@@ -12802,7 +12803,7 @@ function App() {
             }
           });
           fixedStock = repaired;
-          supaSet("zak_sync_repair_v1", true);
+          supaSet("zak_sync_repair_v2", true);
         }
         setStock(fixedStock);
       } else if (remote.zak_stock) {
