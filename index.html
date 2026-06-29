@@ -28,17 +28,17 @@ function _slicedToArray(r, e) { return _arrayWithHoles(r) || _iterableToArrayLim
 function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
 function _iterableToArrayLimit(r, l) { var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (null != t) { var e, n, i, u, a = [], f = !0, o = !1; try { if (i = (t = t.call(r)).next, 0 === l) { if (Object(t) !== t) return; f = !1; } else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0); } catch (r) { o = !0, n = r; } finally { try { if (!f && null != t.return && (u = t.return(), Object(u) !== u)) return; } finally { if (o) throw n; } } return a; } }
 function _arrayWithHoles(r) { if (Array.isArray(r)) return r; }
+function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
+function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
+function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
+function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == _typeof(i) ? i : i + ""; }
+function _toPrimitive(t, r) { if ("object" != _typeof(t) || !t) return t; var e = t[Symbol.toPrimitive]; if (void 0 !== e) { var i = e.call(t, r || "default"); if ("object" != _typeof(i)) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === r ? String : Number)(t); }
 function _toConsumableArray(r) { return _arrayWithoutHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableSpread(); }
 function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
 function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
 function _iterableToArray(r) { if ("undefined" != typeof Symbol && null != r[Symbol.iterator] || null != r["@@iterator"]) return Array.from(r); }
 function _arrayWithoutHoles(r) { if (Array.isArray(r)) return _arrayLikeToArray(r); }
 function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
-function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
-function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
-function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
-function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == _typeof(i) ? i : i + ""; }
-function _toPrimitive(t, r) { if ("object" != _typeof(t) || !t) return t; var e = t[Symbol.toPrimitive]; if (void 0 !== e) { var i = e.call(t, r || "default"); if ("object" != _typeof(i)) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === r ? String : Number)(t); }
 var { useState, useMemo, useEffect, useRef } = React;
 var C = {
   black: "#0A0A0A",
@@ -67,6 +67,18 @@ var SET_COLOURS = new Set(["Black", "Blue/White", "Sky Blue", "Turquoise", "Volt
 var SHORTS_COLOURS = new Set(["Black", "Pewter Grey", "White", "Pine Green", "Hyper Turquoise", "Midnight Navy", "University Blue", "Royal Blue", "Bright Crimson", "University Red", "Team Red", "Volt", "Tour Yellow", "University Gold", "Safety Orange", "Court Purple", "Wolf Grey"]);
 // Tops: Park VII Jersey colours
 var TOP_COLOURS = new Set(["University Blue", "Royal Blue", "Tour Yellow", "Bright Crimson", "Vivid Pink"]);
+var CHALLENGER_COLOURS = new Set(["Black Silver", "Smoke Grey"]);
+var MILER_COLOURS = new Set(["White Silver", "Grey Fog"]);
+// Returns the correct colour list for the selected item type
+function getColoursForItem(itemName) {
+  if (itemName === "Nike Park Senior Set") return _toConsumableArray(SET_COLOURS);
+  if (itemName === "Park VII Jersey") return _toConsumableArray(TOP_COLOURS);
+  if (itemName === "Park III Shorts") return _toConsumableArray(SHORTS_COLOURS);
+  if (itemName === "Challenger Shorts") return _toConsumableArray(CHALLENGER_COLOURS);
+  if (itemName === "Miler Top") return _toConsumableArray(MILER_COLOURS);
+  // No item selected — show all known colours combined
+  return _toConsumableArray(new Set([].concat(_toConsumableArray(SET_COLOURS), _toConsumableArray(TOP_COLOURS), _toConsumableArray(SHORTS_COLOURS), _toConsumableArray(CHALLENGER_COLOURS), _toConsumableArray(MILER_COLOURS)))).sort();
+}
 function getItemFromColour(colour, existingItemName) {
   // If already set correctly, keep it
   if (existingItemName && ["Nike Park Senior Set", "Park III Shorts", "Park VII Jersey", "Miler Top", "Challenger Shorts"].includes(existingItemName)) return {
@@ -95,7 +107,7 @@ var FLOOR_VINTED = 25,
   FLOOR_EBAY = 32.50,
   MAX_COMBO = 5;
 var PROVEN_COLOURS = ["White", "Black", "White/Black"];
-var BASE_COLOURS = ["White", "Black", "White/Black", "Crimson", "Green/Black", "Volt", "Turquoise", "Navy", "Royal Blue", "White Silver", "Grey Fog", "Black Silver", "Smoke Grey", "Blue", "Sky Blue"];
+var BASE_COLOURS = ["White", "Black", "White/Black", "Crimson", "Green/Black", "Volt", "Turquoise", "Navy", "Royal Blue", "University Blue", "White Silver", "Grey Fog", "Black Silver", "Smoke Grey", "Blue", "Sky Blue"];
 var INIT_MAPPINGS = {
   colours: [{
     raw: "Pine Green-Black",
@@ -120,7 +132,7 @@ var INIT_MAPPINGS = {
     internal: "Black"
   }, {
     raw: "University Blue",
-    internal: "Blue"
+    internal: "University Blue"
   }, {
     raw: "Bright Crimson",
     internal: "Crimson"
@@ -1011,7 +1023,6 @@ var COLOUR_NORM_MAP = {
   "Pine Green-Black": "Green/Black",
   "Pine Green/Black": "Green/Black",
   "Pine Green Black": "Green/Black",
-  "University Blue": "Blue",
   "Bright Crimson": "Crimson",
   "Turq White": "Turquoise",
   "Black-Silver": "Black Silver",
@@ -3791,6 +3802,8 @@ function TabSales(_ref13) {
       username: "",
       colour: "White",
       size: "M",
+      shortsSize: "M",
+      diffSizes: false,
       salePrice: "",
       costOverride: "",
       platform: "Vinted",
@@ -3801,18 +3814,27 @@ function TabSales(_ref13) {
     _useState24 = _slicedToArray(_useState23, 2),
     form = _useState24[0],
     setForm = _useState24[1];
-  var _useState25 = useState(null),
+  // Multi-line support: lines = [{itemName, colour, size}]
+  var _useState25 = useState([]),
     _useState26 = _slicedToArray(_useState25, 2),
-    confirmDelete = _useState26[0],
-    setConfirmDelete = _useState26[1];
-  var _useState27 = useState(null),
+    saleLines = _useState26[0],
+    setSaleLines = _useState26[1];
+  var _useState27 = useState(false),
     _useState28 = _slicedToArray(_useState27, 2),
-    editId = _useState28[0],
-    setEditId = _useState28[1];
-  var _useState29 = useState({}),
+    multiMode = _useState28[0],
+    setMultiMode = _useState28[1];
+  var _useState29 = useState(null),
     _useState30 = _slicedToArray(_useState29, 2),
-    editForm = _useState30[0],
-    setEditForm = _useState30[1];
+    confirmDelete = _useState30[0],
+    setConfirmDelete = _useState30[1];
+  var _useState31 = useState(null),
+    _useState32 = _slicedToArray(_useState31, 2),
+    editId = _useState32[0],
+    setEditId = _useState32[1];
+  var _useState33 = useState({}),
+    _useState34 = _slicedToArray(_useState33, 2),
+    editForm = _useState34[0],
+    setEditForm = _useState34[1];
 
   // ── Consume salesPrefill from Customers tab ──────────────────
   useEffect(function () {
@@ -3826,6 +3848,7 @@ function TabSales(_ref13) {
         itemType: "drifit"
       });
     });
+    setSaleLines([]);
     setShow(true);
     setSalesPrefill(null);
   }, [salesPrefill]);
@@ -3942,20 +3965,45 @@ function TabSales(_ref13) {
     });
     var isDrifit = form.itemType === "drifit";
     var loc = form.platform === "Birms" ? "birmingham" : "london";
-    var newSale = _objectSpread(_objectSpread({
-      id: Date.now()
-    }, form), {}, {
-      colour: col,
-      salePrice: parseFloat(form.salePrice),
-      costOverride: isDrifit ? undefined : parseFloat(form.costOverride) || undefined,
-      itemName: isDrifit ? getItemFromColour(col).itemName : form.itemName || undefined,
-      purchaseId: null,
-      location: loc,
-      saleDate: form.saleDate || new Date().toISOString().slice(0, 10)
+    var now = Date.now();
+    var baseDate = form.saleDate || new Date().toISOString().slice(0, 10);
+    // Build all sales — first line from main form, extra lines from saleLines
+    var allLines = [{
+      col: col,
+      size: form.size,
+      itemName: isDrifit ? form.itemName || getItemFromColour(col).itemName : form.itemName || undefined,
+      shortsSize: isDrifit && form.diffSizes && form.itemName === "Nike Park Senior Set" ? form.shortsSize : undefined,
+      topSize: isDrifit && form.diffSizes && form.itemName === "Nike Park Senior Set" ? form.size : undefined
+    }].concat(_toConsumableArray(saleLines.map(function (l) {
+      return {
+        col: l.colour.trim(),
+        size: l.size,
+        itemName: l.itemName
+      };
+    })));
+    var newSales = allLines.map(function (line, idx) {
+      return {
+        id: now + idx,
+        itemType: form.itemType,
+        colour: line.col,
+        size: line.size,
+        itemName: isDrifit ? line.itemName : form.itemName || undefined,
+        username: form.username,
+        platform: form.platform,
+        expressDelivery: form.expressDelivery,
+        status: form.status,
+        location: loc,
+        saleDate: baseDate,
+        salePrice: idx === 0 ? parseFloat(form.salePrice) : 0,
+        // full price on first line, 0 on extras (bundled)
+        costOverride: isDrifit ? undefined : parseFloat(form.costOverride) || undefined,
+        purchaseId: null,
+        bundleId: allLines.length > 1 ? now : undefined // link bundled items
+      };
     });
     if (!isDrifit && form.externalId) syncExternalOnLog(form.externalId);
     setSales(function (p) {
-      return [].concat(_toConsumableArray(p), [newSale]);
+      return [].concat(_toConsumableArray(p), _toConsumableArray(newSales));
     });
     setForm({
       itemType: "drifit",
@@ -3964,6 +4012,8 @@ function TabSales(_ref13) {
       username: "",
       colour: "White",
       size: "M",
+      shortsSize: "M",
+      diffSizes: false,
       salePrice: "",
       costOverride: "",
       platform: "Vinted",
@@ -3971,6 +4021,7 @@ function TabSales(_ref13) {
       status: "pending_delivery",
       location: "london"
     });
+    setSaleLines([]);
     setShow(false);
   }
   function updateStatus(id, status, source) {
@@ -4223,31 +4274,47 @@ function TabSales(_ref13) {
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
-      gap: 7,
-      marginBottom: 12
+      gap: 6,
+      marginBottom: 10,
+      flexWrap: "wrap"
     }
-  }, [["drifit", "Dri-Fit Set"], ["external", "External Stock"]].map(function (_ref17) {
+  }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"], ["external", "External"]].map(function (_ref17) {
     var _ref18 = _slicedToArray(_ref17, 2),
       k = _ref18[0],
       lbl = _ref18[1];
+    var active = form.itemType === "external" ? k === "external" : form.itemName === k && form.itemType === "drifit";
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       onClick: function onClick() {
-        return setForm(function (p) {
-          return _objectSpread(_objectSpread({}, p), {}, {
-            itemType: k,
-            externalId: null,
-            itemName: "",
-            costOverride: ""
+        if (k === "external") {
+          setForm(function (p) {
+            return _objectSpread(_objectSpread({}, p), {}, {
+              itemType: "external",
+              itemName: "",
+              externalId: null,
+              costOverride: ""
+            });
           });
-        });
+          setMultiMode(false);
+          setSaleLines([]);
+        } else {
+          var firstColour = k === "Nike Park Senior Set" ? "White" : k === "Park VII Jersey" ? "University Blue" : k === "Park III Shorts" ? "University Blue" : k === "Challenger Shorts" ? "Black Silver" : k === "Miler Top" ? "White Silver" : "White";
+          setForm(function (p) {
+            return _objectSpread(_objectSpread({}, p), {}, {
+              itemType: "drifit",
+              itemName: k,
+              colour: firstColour,
+              costOverride: ""
+            });
+          });
+        }
       },
       style: {
-        background: form.itemType === k ? "rgba(255,255,255,0.1)" : "transparent",
-        border: "1px solid ".concat(form.itemType === k ? C.offwhite : C.grey3),
-        color: form.itemType === k ? C.offwhite : C.grey5,
+        background: active ? "rgba(255,255,255,0.12)" : "transparent",
+        border: "1px solid ".concat(active ? C.offwhite : C.grey3),
+        color: active ? C.offwhite : C.grey5,
         borderRadius: 3,
-        padding: "5px 12px",
+        padding: "4px 10px",
         fontSize: 10,
         fontWeight: 700,
         cursor: "pointer",
@@ -4313,18 +4380,19 @@ function TabSales(_ref13) {
     placeholder: "Pick or type...",
     onChange: function onChange(e) {
       var col = e.target.value;
-      var _getItemFromColour = getItemFromColour(col),
+      var _getItemFromColour = getItemFromColour(col, form.itemName),
         autoItem = _getItemFromColour.itemName;
       setForm(function (p) {
         return _objectSpread(_objectSpread({}, p), {}, {
-          colour: col,
+          colour: col
+        }, p.itemName ? {} : {
           itemName: autoItem
         });
       });
     }
   }), /*#__PURE__*/React.createElement("datalist", {
     id: "sale-colours"
-  }, colours.map(function (c) {
+  }, getColoursForItem(form.itemName).map(function (c) {
     return /*#__PURE__*/React.createElement("option", {
       key: c,
       value: c
@@ -4337,13 +4405,56 @@ function TabSales(_ref13) {
       textTransform: "uppercase",
       letterSpacing: "0.06em"
     }
-  }, "Size"), /*#__PURE__*/React.createElement("select", {
+  }, form.itemName === "Nike Park Senior Set" && form.diffSizes ? "Top Size" : "Size"), /*#__PURE__*/React.createElement("select", {
     style: IS,
     value: form.size,
     onChange: function onChange(e) {
       return setForm(function (p) {
         return _objectSpread(_objectSpread({}, p), {}, {
           size: e.target.value
+        });
+      });
+    }
+  }, SIZES.map(function (s) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: s
+    }, s);
+  })), form.itemName === "Nike Park Senior Set" && /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 5,
+      color: C.grey5,
+      fontSize: 10,
+      cursor: "pointer",
+      marginTop: 4
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: form.diffSizes,
+    onChange: function onChange(e) {
+      return setForm(function (p) {
+        return _objectSpread(_objectSpread({}, p), {}, {
+          diffSizes: e.target.checked,
+          shortsSize: p.size
+        });
+      });
+    }
+  }), " Different sizes")), form.itemName === "Nike Park Senior Set" && form.diffSizes && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.grey5,
+      fontSize: 10,
+      marginBottom: 3,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em"
+    }
+  }, "Shorts Size"), /*#__PURE__*/React.createElement("select", {
+    style: IS,
+    value: form.shortsSize,
+    onChange: function onChange(e) {
+      return setForm(function (p) {
+        return _objectSpread(_objectSpread({}, p), {}, {
+          shortsSize: e.target.value
         });
       });
     }
@@ -4515,7 +4626,193 @@ function TabSales(_ref13) {
         });
       });
     }
-  }), " Express (\xA3", EXPRESS, ")"), /*#__PURE__*/React.createElement("div", {
+  }), " Express (\xA3", EXPRESS, ")"), form.itemType === "drifit" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 6
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.grey5,
+      fontSize: 10,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em"
+    }
+  }, "Items in this sale"), /*#__PURE__*/React.createElement("button", {
+    onClick: function onClick() {
+      setSaleLines(function (p) {
+        return [].concat(_toConsumableArray(p), [{
+          itemName: form.itemName || "Nike Park Senior Set",
+          colour: form.colour,
+          size: form.size,
+          id: Date.now()
+        }]);
+      });
+    },
+    style: {
+      background: "rgba(34,197,94,0.1)",
+      border: "1px solid ".concat(C.green),
+      color: C.green,
+      borderRadius: 2,
+      padding: "2px 8px",
+      fontSize: 9,
+      fontWeight: 700,
+      cursor: "pointer",
+      textTransform: "uppercase"
+    }
+  }, "+ Add Line")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.grey2,
+      borderRadius: 3,
+      padding: "6px 9px",
+      marginBottom: 4,
+      fontSize: 11,
+      display: "flex",
+      alignItems: "center",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      flex: 1,
+      fontWeight: 700
+    }
+  }, form.itemName || "Nike Park Senior Set"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.grey5
+    }
+  }, form.colour, " \xB7 ", form.size), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.green,
+      fontFamily: "monospace"
+    }
+  }, "\xA3", getItemFromColour(form.colour, form.itemName).cost.toFixed(2))), saleLines.map(function (line, idx) {
+    return /*#__PURE__*/React.createElement("div", {
+      key: line.id,
+      style: {
+        background: C.grey2,
+        borderRadius: 3,
+        padding: "6px 9px",
+        marginBottom: 4,
+        display: "grid",
+        gridTemplateColumns: "1fr auto auto auto",
+        gap: 8,
+        alignItems: "center"
+      }
+    }, /*#__PURE__*/React.createElement("select", {
+      style: {
+        background: C.grey1,
+        border: "1px solid ".concat(C.grey3),
+        color: C.offwhite,
+        borderRadius: 2,
+        padding: "3px 6px",
+        fontSize: 11,
+        outline: "none"
+      },
+      value: line.itemName,
+      onChange: function onChange(e) {
+        return setSaleLines(function (p) {
+          return p.map(function (l, i) {
+            return i === idx ? _objectSpread(_objectSpread({}, l), {}, {
+              itemName: e.target.value
+            }) : l;
+          });
+        });
+      }
+    }, ["Nike Park Senior Set", "Park VII Jersey", "Park III Shorts", "Challenger Shorts", "Miler Top"].map(function (n) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: n
+      }, n);
+    })), /*#__PURE__*/React.createElement("input", {
+      list: "line-colours-".concat(idx),
+      style: {
+        background: C.grey1,
+        border: "1px solid ".concat(C.grey3),
+        color: C.offwhite,
+        borderRadius: 2,
+        padding: "3px 6px",
+        fontSize: 11,
+        width: 120,
+        outline: "none"
+      },
+      value: line.colour,
+      onChange: function onChange(e) {
+        return setSaleLines(function (p) {
+          return p.map(function (l, i) {
+            return i === idx ? _objectSpread(_objectSpread({}, l), {}, {
+              colour: e.target.value
+            }) : l;
+          });
+        });
+      },
+      placeholder: "Colour"
+    }), /*#__PURE__*/React.createElement("datalist", {
+      id: "line-colours-".concat(idx)
+    }, getColoursForItem(line.itemName).map(function (c) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: c,
+        value: c
+      });
+    })), /*#__PURE__*/React.createElement("select", {
+      style: {
+        background: C.grey1,
+        border: "1px solid ".concat(C.grey3),
+        color: C.offwhite,
+        borderRadius: 2,
+        padding: "3px 6px",
+        fontSize: 11,
+        outline: "none"
+      },
+      value: line.size,
+      onChange: function onChange(e) {
+        return setSaleLines(function (p) {
+          return p.map(function (l, i) {
+            return i === idx ? _objectSpread(_objectSpread({}, l), {}, {
+              size: e.target.value
+            }) : l;
+          });
+        });
+      }
+    }, SIZES.map(function (s) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: s
+      }, s);
+    })), /*#__PURE__*/React.createElement("button", {
+      onClick: function onClick() {
+        return setSaleLines(function (p) {
+          return p.filter(function (_, i) {
+            return i !== idx;
+          });
+        });
+      },
+      style: {
+        background: "rgba(232,38,10,0.1)",
+        border: "1px solid rgba(232,38,10,0.3)",
+        color: C.red,
+        borderRadius: 2,
+        padding: "2px 6px",
+        fontSize: 9,
+        fontWeight: 700,
+        cursor: "pointer"
+      }
+    }, "\u2715"));
+  }), saleLines.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.grey5,
+      fontSize: 10,
+      marginTop: 4
+    }
+  }, "Total cost: \xA3", [{
+    itemName: form.itemName || "Nike Park Senior Set",
+    colour: form.colour
+  }].concat(_toConsumableArray(saleLines)).reduce(function (a, l) {
+    return a + getItemFromColour(l.colour, l.itemName).cost;
+  }, 0).toFixed(2))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8
@@ -4526,7 +4823,9 @@ function TabSales(_ref13) {
   }, "Log"), /*#__PURE__*/React.createElement("button", {
     style: BS,
     onClick: function onClick() {
-      return setShow(false);
+      setShow(false);
+      setSaleLines([]);
+      setMultiMode(false);
     }
   }, "Cancel"))), filtered.map(function (sale, idx) {
     var sc = statusCol(sale.status);
@@ -5215,62 +5514,62 @@ function TabCustomers(_ref19) {
     colours = _ref19.colours,
     stock = _ref19.stock,
     onConvertRequest = _ref19.onConvertRequest;
-  var _useState31 = useState("list"),
-    _useState32 = _slicedToArray(_useState31, 2),
-    view = _useState32[0],
-    setView = _useState32[1]; // list | detail | add
-  var _useState33 = useState(null),
-    _useState34 = _slicedToArray(_useState33, 2),
-    selectedId = _useState34[0],
-    setSelectedId = _useState34[1];
-  var _useState35 = useState(false),
+  var _useState35 = useState("list"),
     _useState36 = _slicedToArray(_useState35, 2),
-    showAddForm = _useState36[0],
-    setShowAddForm = _useState36[1];
-  var _useState37 = useState({
+    view = _useState36[0],
+    setView = _useState36[1]; // list | detail | add
+  var _useState37 = useState(null),
+    _useState38 = _slicedToArray(_useState37, 2),
+    selectedId = _useState38[0],
+    setSelectedId = _useState38[1];
+  var _useState39 = useState(false),
+    _useState40 = _slicedToArray(_useState39, 2),
+    showAddForm = _useState40[0],
+    setShowAddForm = _useState40[1];
+  var _useState41 = useState({
       name: "",
       platform: "Vinted",
       note: ""
     }),
-    _useState38 = _slicedToArray(_useState37, 2),
-    addForm = _useState38[0],
-    setAddForm = _useState38[1];
-  var _useState39 = useState(null),
-    _useState40 = _slicedToArray(_useState39, 2),
-    editId = _useState40[0],
-    setEditId = _useState40[1];
-  var _useState41 = useState({}),
     _useState42 = _slicedToArray(_useState41, 2),
-    editForm = _useState42[0],
-    setEditForm = _useState42[1];
+    addForm = _useState42[0],
+    setAddForm = _useState42[1];
   var _useState43 = useState(null),
     _useState44 = _slicedToArray(_useState43, 2),
-    confirmDelete = _useState44[0],
-    setConfirmDelete = _useState44[1];
-  // Request form per customer
-  var _useState45 = useState(null),
+    editId = _useState44[0],
+    setEditId = _useState44[1];
+  var _useState45 = useState({}),
     _useState46 = _slicedToArray(_useState45, 2),
-    showReqForm = _useState46[0],
-    setShowReqForm = _useState46[1];
-  var _useState47 = useState([{
+    editForm = _useState46[0],
+    setEditForm = _useState46[1];
+  var _useState47 = useState(null),
+    _useState48 = _slicedToArray(_useState47, 2),
+    confirmDelete = _useState48[0],
+    setConfirmDelete = _useState48[1];
+  // Request form per customer
+  var _useState49 = useState(null),
+    _useState50 = _slicedToArray(_useState49, 2),
+    showReqForm = _useState50[0],
+    setShowReqForm = _useState50[1];
+  var _useState51 = useState([{
       id: Date.now(),
       colour: "",
       size: "M",
       qty: 1,
       note: ""
     }]),
-    _useState48 = _slicedToArray(_useState47, 2),
-    reqLines = _useState48[0],
-    setReqLines = _useState48[1];
-  // Link sales modal
-  var _useState49 = useState(null),
-    _useState50 = _slicedToArray(_useState49, 2),
-    linkingCustomerId = _useState50[0],
-    setLinkingCustomerId = _useState50[1];
-  var _useState51 = useState(""),
     _useState52 = _slicedToArray(_useState51, 2),
-    saleSearch = _useState52[0],
-    setSaleSearch = _useState52[1];
+    reqLines = _useState52[0],
+    setReqLines = _useState52[1];
+  // Link sales modal
+  var _useState53 = useState(null),
+    _useState54 = _slicedToArray(_useState53, 2),
+    linkingCustomerId = _useState54[0],
+    setLinkingCustomerId = _useState54[1];
+  var _useState55 = useState(""),
+    _useState56 = _slicedToArray(_useState55, 2),
+    saleSearch = _useState56[0],
+    setSaleSearch = _useState56[1];
   var selected = customers.find(function (c) {
     return c.id === selectedId;
   });
@@ -6337,34 +6636,34 @@ function TabMappings(_ref20) {
   var mappings = _ref20.mappings,
     setMappings = _ref20.setMappings,
     colours = _ref20.colours;
-  var _useState53 = useState(""),
-    _useState54 = _slicedToArray(_useState53, 2),
-    newColourRaw = _useState54[0],
-    setNewColourRaw = _useState54[1];
-  var _useState55 = useState(""),
-    _useState56 = _slicedToArray(_useState55, 2),
-    newColourInternal = _useState56[0],
-    setNewColourInternal = _useState56[1];
   var _useState57 = useState(""),
     _useState58 = _slicedToArray(_useState57, 2),
-    newSizeRaw = _useState58[0],
-    setNewSizeRaw = _useState58[1];
+    newColourRaw = _useState58[0],
+    setNewColourRaw = _useState58[1];
   var _useState59 = useState(""),
     _useState60 = _slicedToArray(_useState59, 2),
-    newSizeInternal = _useState60[0],
-    setNewSizeInternal = _useState60[1];
-  var _useState61 = useState(null),
+    newColourInternal = _useState60[0],
+    setNewColourInternal = _useState60[1];
+  var _useState61 = useState(""),
     _useState62 = _slicedToArray(_useState61, 2),
-    editIdx = _useState62[0],
-    setEditIdx = _useState62[1];
-  var _useState63 = useState({}),
+    newSizeRaw = _useState62[0],
+    setNewSizeRaw = _useState62[1];
+  var _useState63 = useState(""),
     _useState64 = _slicedToArray(_useState63, 2),
-    editForm = _useState64[0],
-    setEditForm = _useState64[1];
+    newSizeInternal = _useState64[0],
+    setNewSizeInternal = _useState64[1];
   var _useState65 = useState(null),
     _useState66 = _slicedToArray(_useState65, 2),
-    confirmDelete = _useState66[0],
-    setConfirmDelete = _useState66[1];
+    editIdx = _useState66[0],
+    setEditIdx = _useState66[1];
+  var _useState67 = useState({}),
+    _useState68 = _slicedToArray(_useState67, 2),
+    editForm = _useState68[0],
+    setEditForm = _useState68[1];
+  var _useState69 = useState(null),
+    _useState70 = _slicedToArray(_useState69, 2),
+    confirmDelete = _useState70[0],
+    setConfirmDelete = _useState70[1];
   function addMapping(type, raw, internal) {
     if (!raw.trim() || !internal.trim()) return;
     setMappings(function (p) {
@@ -6810,62 +7109,62 @@ function TabPurchases(_ref22) {
     setMappings = _ref22.setMappings,
     stock = _ref22.stock,
     setStock = _ref22.setStock;
-  var _useState67 = useState("list"),
-    _useState68 = _slicedToArray(_useState67, 2),
-    view = _useState68[0],
-    setView = _useState68[1]; // list | upload | review
-  var _useState69 = useState(false),
-    _useState70 = _slicedToArray(_useState69, 2),
-    uploading = _useState70[0],
-    setUploading = _useState70[1];
-  var _useState71 = useState("all"),
+  var _useState71 = useState("list"),
     _useState72 = _slicedToArray(_useState71, 2),
-    filterSupplier = _useState72[0],
-    setFilterSupplier = _useState72[1];
-  var _useState73 = useState("all"),
+    view = _useState72[0],
+    setView = _useState72[1]; // list | upload | review
+  var _useState73 = useState(false),
     _useState74 = _slicedToArray(_useState73, 2),
-    filterStatus = _useState74[0],
-    setFilterStatus = _useState74[1];
-  var _useState75 = useState(null),
+    uploading = _useState74[0],
+    setUploading = _useState74[1];
+  var _useState75 = useState("all"),
     _useState76 = _slicedToArray(_useState75, 2),
-    editPurchaseId = _useState76[0],
-    setEditPurchaseId = _useState76[1];
-  var _useState77 = useState({}),
+    filterSupplier = _useState76[0],
+    setFilterSupplier = _useState76[1];
+  var _useState77 = useState("all"),
     _useState78 = _slicedToArray(_useState77, 2),
-    editPurchaseForm = _useState78[0],
-    setEditPurchaseForm = _useState78[1];
+    filterStatus = _useState78[0],
+    setFilterStatus = _useState78[1];
   var _useState79 = useState(null),
     _useState80 = _slicedToArray(_useState79, 2),
-    confirmDeletePurchase = _useState80[0],
-    setConfirmDeletePurchase = _useState80[1];
-  var _useState81 = useState(null),
+    editPurchaseId = _useState80[0],
+    setEditPurchaseId = _useState80[1];
+  var _useState81 = useState({}),
     _useState82 = _slicedToArray(_useState81, 2),
-    extractedData = _useState82[0],
-    setExtractedData = _useState82[1];
-  var _useState83 = useState([]),
+    editPurchaseForm = _useState82[0],
+    setEditPurchaseForm = _useState82[1];
+  var _useState83 = useState(null),
     _useState84 = _slicedToArray(_useState83, 2),
-    lineItems = _useState84[0],
-    setLineItems = _useState84[1];
+    confirmDeletePurchase = _useState84[0],
+    setConfirmDeletePurchase = _useState84[1];
   var _useState85 = useState(null),
     _useState86 = _slicedToArray(_useState85, 2),
-    matchedPurchase = _useState86[0],
-    setMatchedPurchase = _useState86[1];
-  var _useState87 = useState(false),
+    extractedData = _useState86[0],
+    setExtractedData = _useState86[1];
+  var _useState87 = useState([]),
     _useState88 = _slicedToArray(_useState87, 2),
-    confirmMatch = _useState88[0],
-    setConfirmMatch = _useState88[1];
-  var _useState89 = useState([]),
+    lineItems = _useState88[0],
+    setLineItems = _useState88[1];
+  var _useState89 = useState(null),
     _useState90 = _slicedToArray(_useState89, 2),
-    reviewItems = _useState90[0],
-    setReviewItems = _useState90[1];
-  var _useState91 = useState(""),
+    matchedPurchase = _useState90[0],
+    setMatchedPurchase = _useState90[1];
+  var _useState91 = useState(false),
     _useState92 = _slicedToArray(_useState91, 2),
-    invoiceText = _useState92[0],
-    setInvoiceText = _useState92[1];
-  var _useState93 = useState(null),
+    confirmMatch = _useState92[0],
+    setConfirmMatch = _useState92[1];
+  var _useState93 = useState([]),
     _useState94 = _slicedToArray(_useState93, 2),
-    error = _useState94[0],
-    setError = _useState94[1];
+    reviewItems = _useState94[0],
+    setReviewItems = _useState94[1];
+  var _useState95 = useState(""),
+    _useState96 = _slicedToArray(_useState95, 2),
+    invoiceText = _useState96[0],
+    setInvoiceText = _useState96[1];
+  var _useState97 = useState(null),
+    _useState98 = _slicedToArray(_useState97, 2),
+    error = _useState98[0],
+    setError = _useState98[1];
   var fileRef = useRef(null);
   var allPurchases = useMemo(function () {
     // Match user purchases to INIT by id OR invoiceNumber
@@ -8567,7 +8866,7 @@ function ChineseEditForm(_ref23) {
     setChinese = _ref23.setChinese,
     colours = _ref23.colours,
     onClose = _ref23.onClose;
-  var _useState95 = useState({
+  var _useState99 = useState({
       item: item.item || "",
       colour: item.colour || "",
       size: item.size || "",
@@ -8577,9 +8876,9 @@ function ChineseEditForm(_ref23) {
       location: item.location || "you",
       supplier: item.supplier || ""
     }),
-    _useState96 = _slicedToArray(_useState95, 2),
-    form = _useState96[0],
-    setForm = _useState96[1];
+    _useState100 = _slicedToArray(_useState99, 2),
+    form = _useState100[0],
+    setForm = _useState100[1];
   function save() {
     setChinese(function (p) {
       return p.map(function (c) {
@@ -8901,14 +9200,14 @@ function ChineseSaleBtn(_ref24) {
   var _item$salePrice;
   var item = _ref24.item,
     setChinese = _ref24.setChinese;
-  var _useState97 = useState(false),
-    _useState98 = _slicedToArray(_useState97, 2),
-    show = _useState98[0],
-    setShow = _useState98[1];
-  var _useState99 = useState(""),
-    _useState100 = _slicedToArray(_useState99, 2),
-    price = _useState100[0],
-    setPrice = _useState100[1];
+  var _useState101 = useState(false),
+    _useState102 = _slicedToArray(_useState101, 2),
+    show = _useState102[0],
+    setShow = _useState102[1];
+  var _useState103 = useState(""),
+    _useState104 = _slicedToArray(_useState103, 2),
+    price = _useState104[0],
+    setPrice = _useState104[1];
   if (item.location === "sold") return /*#__PURE__*/React.createElement(Tag, {
     bg: "rgba(34,197,94,0.15)",
     fg: C.green
@@ -9007,47 +9306,47 @@ function TabBirmingham(_ref25) {
     colours = _ref25.colours,
     stock = _ref25.stock,
     setStock = _ref25.setStock;
-  var _useState101 = useState("overview"),
-    _useState102 = _slicedToArray(_useState101, 2),
-    subTab = _useState102[0],
-    setSubTab = _useState102[1];
-  var _useState103 = useState(null),
-    _useState104 = _slicedToArray(_useState103, 2),
-    confirmRemoveBham = _useState104[0],
-    setConfirmRemoveBham = _useState104[1];
-  var _useState105 = useState(false),
+  var _useState105 = useState("overview"),
     _useState106 = _slicedToArray(_useState105, 2),
-    showAddStock = _useState106[0],
-    setShowAddStock = _useState106[1];
-  var _useState107 = useState({
+    subTab = _useState106[0],
+    setSubTab = _useState106[1];
+  var _useState107 = useState(null),
+    _useState108 = _slicedToArray(_useState107, 2),
+    confirmRemoveBham = _useState108[0],
+    setConfirmRemoveBham = _useState108[1];
+  var _useState109 = useState(false),
+    _useState110 = _slicedToArray(_useState109, 2),
+    showAddStock = _useState110[0],
+    setShowAddStock = _useState110[1];
+  var _useState111 = useState({
       colour: "White",
       size: "M",
       qty: "1",
       status: "in_stock"
     }),
-    _useState108 = _slicedToArray(_useState107, 2),
-    addStockForm = _useState108[0],
-    setAddStockForm = _useState108[1];
-  var _useState109 = useState(null),
-    _useState110 = _slicedToArray(_useState109, 2),
-    editChineseId = _useState110[0],
-    setEditChineseId = _useState110[1];
-  var _useState111 = useState(null),
     _useState112 = _slicedToArray(_useState111, 2),
-    confirmDeleteChinese = _useState112[0],
-    setConfirmDeleteChinese = _useState112[1];
-  var _useState113 = useState("all"),
+    addStockForm = _useState112[0],
+    setAddStockForm = _useState112[1];
+  var _useState113 = useState(null),
     _useState114 = _slicedToArray(_useState113, 2),
-    filterTypeBham = _useState114[0],
-    setFilterTypeBham = _useState114[1];
-  var _useState115 = useState("all"),
+    editChineseId = _useState114[0],
+    setEditChineseId = _useState114[1];
+  var _useState115 = useState(null),
     _useState116 = _slicedToArray(_useState115, 2),
-    filterSupplierBham = _useState116[0],
-    setFilterSupplierBham = _useState116[1];
+    confirmDeleteChinese = _useState116[0],
+    setConfirmDeleteChinese = _useState116[1];
   var _useState117 = useState("all"),
     _useState118 = _slicedToArray(_useState117, 2),
-    filterColourBham = _useState118[0],
-    setFilterColourBham = _useState118[1];
+    filterTypeBham = _useState118[0],
+    setFilterTypeBham = _useState118[1];
+  var _useState119 = useState("all"),
+    _useState120 = _slicedToArray(_useState119, 2),
+    filterSupplierBham = _useState120[0],
+    setFilterSupplierBham = _useState120[1];
+  var _useState121 = useState("all"),
+    _useState122 = _slicedToArray(_useState121, 2),
+    filterColourBham = _useState122[0],
+    setFilterColourBham = _useState122[1];
   function removeOneBhamStock(colour, size, status) {
     var removed = false;
     setDriStock(function (p) {
@@ -10452,15 +10751,15 @@ function TabStock(_ref37) {
     bhamSales = _ref37.bhamSales,
     stock = _ref37.stock,
     setStock = _ref37.setStock;
-  var _useState119 = useState("overview"),
-    _useState120 = _slicedToArray(_useState119, 2),
-    subTab = _useState120[0],
-    setSubTab = _useState120[1];
-  var _useState121 = useState(false),
-    _useState122 = _slicedToArray(_useState121, 2),
-    showAddStock = _useState122[0],
-    setShowAddStock = _useState122[1];
-  var _useState123 = useState({
+  var _useState123 = useState("overview"),
+    _useState124 = _slicedToArray(_useState123, 2),
+    subTab = _useState124[0],
+    setSubTab = _useState124[1];
+  var _useState125 = useState(false),
+    _useState126 = _slicedToArray(_useState125, 2),
+    showAddStock = _useState126[0],
+    setShowAddStock = _useState126[1];
+  var _useState127 = useState({
       colour: "White",
       size: "M",
       topSize: "M",
@@ -10469,45 +10768,45 @@ function TabStock(_ref37) {
       qty: "1",
       status: "in_stock"
     }),
-    _useState124 = _slicedToArray(_useState123, 2),
-    addStockForm = _useState124[0],
-    setAddStockForm = _useState124[1];
-  var _useState125 = useState(null),
-    _useState126 = _slicedToArray(_useState125, 2),
-    confirmRemove = _useState126[0],
-    setConfirmRemove = _useState126[1];
-  var _useState127 = useState(null),
     _useState128 = _slicedToArray(_useState127, 2),
-    editPurchaseId = _useState128[0],
-    setEditPurchaseId = _useState128[1];
-  var _useState129 = useState({}),
+    addStockForm = _useState128[0],
+    setAddStockForm = _useState128[1];
+  var _useState129 = useState(null),
     _useState130 = _slicedToArray(_useState129, 2),
-    editPurchaseForm = _useState130[0],
-    setEditPurchaseForm = _useState130[1];
+    confirmRemove = _useState130[0],
+    setConfirmRemove = _useState130[1];
   var _useState131 = useState(null),
     _useState132 = _slicedToArray(_useState131, 2),
-    confirmDeletePurchase = _useState132[0],
-    setConfirmDeletePurchase = _useState132[1];
-  var _useState133 = useState(null),
+    editPurchaseId = _useState132[0],
+    setEditPurchaseId = _useState132[1];
+  var _useState133 = useState({}),
     _useState134 = _slicedToArray(_useState133, 2),
-    editChineseId = _useState134[0],
-    setEditChineseId = _useState134[1];
+    editPurchaseForm = _useState134[0],
+    setEditPurchaseForm = _useState134[1];
   var _useState135 = useState(null),
     _useState136 = _slicedToArray(_useState135, 2),
-    confirmDeleteChinese = _useState136[0],
-    setConfirmDeleteChinese = _useState136[1];
-  var _useState137 = useState("all"),
+    confirmDeletePurchase = _useState136[0],
+    setConfirmDeletePurchase = _useState136[1];
+  var _useState137 = useState(null),
     _useState138 = _slicedToArray(_useState137, 2),
-    filterType = _useState138[0],
-    setFilterType = _useState138[1];
-  var _useState139 = useState(false),
+    editChineseId = _useState138[0],
+    setEditChineseId = _useState138[1];
+  var _useState139 = useState(null),
     _useState140 = _slicedToArray(_useState139, 2),
-    syncing = _useState140[0],
-    setSyncing = _useState140[1];
+    confirmDeleteChinese = _useState140[0],
+    setConfirmDeleteChinese = _useState140[1];
+  var _useState141 = useState("all"),
+    _useState142 = _slicedToArray(_useState141, 2),
+    filterType = _useState142[0],
+    setFilterType = _useState142[1];
+  var _useState143 = useState(false),
+    _useState144 = _slicedToArray(_useState143, 2),
+    syncing = _useState144[0],
+    setSyncing = _useState144[1];
   function syncStock() {
     setSyncing(true);
     var completedSales = (sales || []).filter(function (s) {
-      return s.status === "completed" && (s.itemType === "drifit" || !s.itemType) && s.platform !== "Birms";
+      return ["completed", "pending_delivery", "shipped"].includes(s.status) && (s.itemType === "drifit" || !s.itemType) && s.platform !== "Birms";
     });
     setDriStock(function (prev) {
       var updated = _toConsumableArray(prev);
@@ -10554,14 +10853,14 @@ function TabStock(_ref37) {
       return setSyncing(false);
     }, 600);
   }
-  var _useState141 = useState("all"),
-    _useState142 = _slicedToArray(_useState141, 2),
-    filterSupplierStock = _useState142[0],
-    setFilterSupplierStock = _useState142[1];
-  var _useState143 = useState("all"),
-    _useState144 = _slicedToArray(_useState143, 2),
-    filterColourStock = _useState144[0],
-    setFilterColourStock = _useState144[1];
+  var _useState145 = useState("all"),
+    _useState146 = _slicedToArray(_useState145, 2),
+    filterSupplierStock = _useState146[0],
+    setFilterSupplierStock = _useState146[1];
+  var _useState147 = useState("all"),
+    _useState148 = _slicedToArray(_useState147, 2),
+    filterColourStock = _useState148[0],
+    setFilterColourStock = _useState148[1];
   function removeOneStock(colour, size, status) {
     var removed = false;
     setDriStock(function (p) {
@@ -11717,7 +12016,113 @@ function TabStock(_ref37) {
     return a + b;
   }, 0) || "—"), /*#__PURE__*/React.createElement("td", {
     colSpan: 2
-  }))))), problems.length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SHdr, null, "Problem Items"), problems.map(function (s, i) {
+  }))))), function () {
+    var customOrders = toSell.filter(function (s) {
+      return s.topSize && s.shortsSize && s.topSize !== s.shortsSize;
+    });
+    if (customOrders.length === 0) return null;
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: C.grey1,
+        border: "1px solid ".concat(C.grey2),
+        borderRadius: 4,
+        padding: 14,
+        marginBottom: 14
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 700,
+        fontSize: 12,
+        marginBottom: 10,
+        color: C.amber
+      }
+    }, "\u2691 Custom Orders (", customOrders.length, ")"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: C.grey5,
+        fontSize: 11,
+        marginBottom: 10
+      }
+    }, "Mixed-size sets \u2014 top and shorts are different sizes"), customOrders.map(function (s, idx) {
+      return /*#__PURE__*/React.createElement("div", {
+        key: s.id || idx,
+        style: {
+          background: C.grey2,
+          borderRadius: 3,
+          padding: "8px 10px",
+          marginBottom: 6,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10
+        }
+      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontWeight: 700,
+          fontSize: 12
+        }
+      }, s.colour, " Park Senior Set"), /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.grey4,
+          fontSize: 11,
+          marginLeft: 8
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.grey5
+        }
+      }, "Top"), " ", s.topSize, " / ", /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.grey5
+        }
+      }, "Shorts"), " ", s.shortsSize)), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          gap: 6,
+          alignItems: "center"
+        }
+      }, s.status === "preorder" ? /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.amber,
+          fontSize: 10,
+          fontWeight: 700,
+          textTransform: "uppercase"
+        }
+      }, "Pre-order") : /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.green,
+          fontSize: 10,
+          fontWeight: 700,
+          textTransform: "uppercase"
+        }
+      }, "In Hand"), /*#__PURE__*/React.createElement("button", {
+        onClick: function onClick() {
+          var moved = false;
+          setDriStock(function (p) {
+            return p.map(function (x) {
+              if (!moved && x.id === s.id) {
+                moved = true;
+                return _objectSpread(_objectSpread({}, x), {}, {
+                  location: "birmingham"
+                });
+              }
+              return x;
+            });
+          });
+        },
+        style: {
+          background: "rgba(168,85,247,0.1)",
+          border: "1px solid ".concat(C.purple),
+          color: C.purple,
+          borderRadius: 2,
+          padding: "2px 6px",
+          fontSize: 9,
+          fontWeight: 700,
+          cursor: "pointer",
+          textTransform: "uppercase"
+        }
+      }, "\u2192 Bham")));
+    }));
+  }(), problems.length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SHdr, null, "Problem Items"), problems.map(function (s, i) {
     return /*#__PURE__*/React.createElement("div", {
       key: i,
       style: {
@@ -12266,11 +12671,11 @@ function TabStock(_ref37) {
 function TabCalc(_ref65) {
   var chinese = _ref65.chinese,
     setChinese = _ref65.setChinese;
-  var _useState145 = useState(false),
-    _useState146 = _slicedToArray(_useState145, 2),
-    show = _useState146[0],
-    setShow = _useState146[1];
-  var _useState147 = useState({
+  var _useState149 = useState(false),
+    _useState150 = _slicedToArray(_useState149, 2),
+    show = _useState150[0],
+    setShow = _useState150[1];
+  var _useState151 = useState({
       item: "",
       colour: "",
       size: "",
@@ -12281,9 +12686,9 @@ function TabCalc(_ref65) {
       wiseRate: "0.1902",
       note: ""
     }),
-    _useState148 = _slicedToArray(_useState147, 2),
-    form = _useState148[0],
-    setForm = _useState148[1];
+    _useState152 = _slicedToArray(_useState151, 2),
+    form = _useState152[0],
+    setForm = _useState152[1];
   function add() {
     if (!form.item || !form.costMYR) return;
     var total = parseFloat(form.costMYR) + (parseFloat(form.shippingMYR) || 0) + (parseFloat(form.fixedMYR) || 0);
@@ -12861,10 +13266,10 @@ function saveOfferStatuses(offers) {
 // Without this gate, the hook writes INIT defaults to Supabase on first render,
 // overwriting real data before the load finishes.
 function useSupabase(key, initialValue, readyRef) {
-  var _useState149 = useState(initialValue),
-    _useState150 = _slicedToArray(_useState149, 2),
-    state = _useState150[0],
-    setState = _useState150[1];
+  var _useState153 = useState(initialValue),
+    _useState154 = _slicedToArray(_useState153, 2),
+    state = _useState154[0],
+    setState = _useState154[1];
   var isFirst = useRef(true);
   useEffect(function () {
     // Skip the very first render (initial value) and skip if not loaded yet
@@ -12886,45 +13291,45 @@ function useSupabase(key, initialValue, readyRef) {
 // ── ROOT ───────────────────────────────────────────────────────
 function App() {
   var importRef = useRef(null);
-  var _useState151 = useState(null),
-    _useState152 = _slicedToArray(_useState151, 2),
-    confirmImport = _useState152[0],
-    setConfirmImport = _useState152[1];
-  var _useState153 = useState(false),
-    _useState154 = _slicedToArray(_useState153, 2),
-    confirmReset = _useState154[0],
-    setConfirmReset = _useState154[1];
-  var _useState155 = useState(true),
+  var _useState155 = useState(null),
     _useState156 = _slicedToArray(_useState155, 2),
-    loading = _useState156[0],
-    setLoading = _useState156[1]; // true while fetching from Supabase
-
-  var _useState157 = useState("sales"),
+    confirmImport = _useState156[0],
+    setConfirmImport = _useState156[1];
+  var _useState157 = useState(false),
     _useState158 = _slicedToArray(_useState157, 2),
-    tab = _useState158[0],
-    setTab = _useState158[1];
+    confirmReset = _useState158[0],
+    setConfirmReset = _useState158[1];
+  var _useState159 = useState(true),
+    _useState160 = _slicedToArray(_useState159, 2),
+    loading = _useState160[0],
+    setLoading = _useState160[1]; // true while fetching from Supabase
+
+  var _useState161 = useState("sales"),
+    _useState162 = _slicedToArray(_useState161, 2),
+    tab = _useState162[0],
+    setTab = _useState162[1];
 
   // ── All state starts with INIT defaults; overwritten once Supabase loads ──
-  var _useState159 = useState(INIT_OFFERS),
-    _useState160 = _slicedToArray(_useState159, 2),
-    offers = _useState160[0],
-    setOffers = _useState160[1];
+  var _useState163 = useState(INIT_OFFERS),
+    _useState164 = _slicedToArray(_useState163, 2),
+    offers = _useState164[0],
+    setOffers = _useState164[1];
   useEffect(function () {
     if (loadedRef.current) saveOfferStatuses(offers);
   }, [offers]);
-  var _useState161 = useState(INIT_SALES),
-    _useState162 = _slicedToArray(_useState161, 2),
-    sales = _useState162[0],
-    setSales = _useState162[1];
+  var _useState165 = useState(INIT_SALES),
+    _useState166 = _slicedToArray(_useState165, 2),
+    sales = _useState166[0],
+    setSales = _useState166[1];
   useEffect(function () {
     if (loadedRef.current) supaSet("zak_sales", sales);
   }, [sales]);
-  var _useState163 = useState(function () {
+  var _useState167 = useState(function () {
       return migrateToUnifiedStock();
     }),
-    _useState164 = _slicedToArray(_useState163, 2),
-    stock = _useState164[0],
-    setStock = _useState164[1];
+    _useState168 = _slicedToArray(_useState167, 2),
+    stock = _useState168[0],
+    setStock = _useState168[1];
   useEffect(function () {
     if (loadedRef.current) supaSet("zak_stock", stock);
   }, [stock]);
@@ -12941,10 +13346,10 @@ function App() {
     _useSupabase6 = _slicedToArray(_useSupabase5, 2),
     purchases = _useSupabase6[0],
     setPurchases = _useSupabase6[1];
-  var _useState165 = useState(null),
-    _useState166 = _slicedToArray(_useState165, 2),
-    salesPrefill = _useState166[0],
-    setSalesPrefill = _useState166[1];
+  var _useState169 = useState(null),
+    _useState170 = _slicedToArray(_useState169, 2),
+    salesPrefill = _useState170[0],
+    setSalesPrefill = _useState170[1];
   var _useSupabase7 = useSupabase("zak_customers", [], loadedRef),
     _useSupabase8 = _slicedToArray(_useSupabase7, 2),
     customers = _useSupabase8[0],
@@ -12978,10 +13383,18 @@ function App() {
         var fixedStock = remote.zak_stock;
         // ── One-time repair: fix over-marked sold items caused by old non-idempotent sync bug ──
         // Only runs once, flagged by zak_sync_repair_v1
-        if (!remote.zak_sync_repair_v3) {
-          // Two-direction repair: fixes both over-marked AND under-marked sold items
-          // Counts completed+pending+shipped sales as "gone" per colour+size
-          // Then aligns stock sold count to match exactly
+        if (!remote.zak_sync_repair_v4) {
+          // Two-direction sold repair + colour rename (Blue->University Blue for non-sets)
+          var repaired = _toConsumableArray(fixedStock);
+          // Step 1: Rename Blue->University Blue for tops and shorts (not sets)
+          repaired.forEach(function (s, i) {
+            if (s.colour === "Blue" && s.itemName && s.itemName !== "Nike Park Senior Set") {
+              repaired[i] = _objectSpread(_objectSpread({}, s), {}, {
+                colour: "University Blue"
+              });
+            }
+          });
+          // Step 2: Two-direction sold count repair
           var goneSales = (remote.zak_sales || []).filter(function (s) {
             return (s.itemType === "drifit" || !s.itemType) && s.platform !== "Birms" && ["completed", "pending_delivery", "shipped"].includes(s.status);
           });
@@ -12990,8 +13403,6 @@ function App() {
             var k = normaliseColour(s.colour) + "-" + s.size;
             salesCount[k] = (salesCount[k] || 0) + 1;
           });
-          var repaired = _toConsumableArray(fixedStock);
-          // Get all colour+size keys from both stock and sales
           var allKeys = new Set([].concat(_toConsumableArray(repaired.filter(function (s) {
             return s.location === "you" && !s.problem && s.status === "sold";
           }).map(function (s) {
@@ -13008,7 +13419,6 @@ function App() {
             }, []);
             var have = soldIdxs.length;
             if (have > needed) {
-              // Over-marked: reset excess to in_stock
               soldIdxs.slice(needed).forEach(function (i) {
                 repaired[i] = _objectSpread(_objectSpread({}, repaired[i]), {}, {
                   status: "in_stock",
@@ -13016,7 +13426,6 @@ function App() {
                 });
               });
             } else if (have < needed) {
-              // Under-marked: mark extra in_stock items as sold
               var instockIdxs = repaired.reduce(function (acc, s, i) {
                 if (s.location === "you" && !s.problem && s.status === "in_stock" && normaliseColour(s.colour) === col && s.size === sz) acc.push(i);
                 return acc;
@@ -13029,7 +13438,7 @@ function App() {
             }
           });
           fixedStock = repaired;
-          supaSet("zak_sync_repair_v3", true);
+          supaSet("zak_sync_repair_v4", true);
         }
         setStock(fixedStock);
       } else if (remote.zak_stock) {
