@@ -59,6 +59,38 @@ var SET_COST = 22.95,
   FREE_THRESHOLD = 75;
 var TOP_COST = 9.50;
 var SHORTS_COST = 10.75;
+
+// ── Definitive colour → item mapping ─────────────────────────
+// Sets: all Newitts Park Senior Set colours
+var SET_COLOURS = new Set(["Black", "Blue/White", "Sky Blue", "Turquoise", "Volt", "Pink/Black", "Crimson", "White/Black", "Navy", "Navy/White", "Turq/Black", "Volt/Black", "Green/Black", "Green/White", "Blue", "White", "Turq/White", "Team Red", "Yellow", "Orange", "Red"]);
+// Shorts: Park III Shorts colours
+var SHORTS_COLOURS = new Set(["Black", "Pewter Grey", "White", "Pine Green", "Hyper Turquoise", "Midnight Navy", "University Blue", "Royal Blue", "Bright Crimson", "University Red", "Team Red", "Volt", "Tour Yellow", "University Gold", "Safety Orange", "Court Purple", "Wolf Grey"]);
+// Tops: Park VII Jersey colours
+var TOP_COLOURS = new Set(["University Blue", "Royal Blue", "Tour Yellow", "Bright Crimson", "Vivid Pink"]);
+function getItemFromColour(colour, existingItemName) {
+  // If already set correctly, keep it
+  if (existingItemName && ["Nike Park Senior Set", "Park III Shorts", "Park VII Jersey", "Miler Top", "Challenger Shorts"].includes(existingItemName)) return {
+    itemName: existingItemName,
+    cost: existingItemName === "Nike Park Senior Set" ? SET_COST : existingItemName === "Park III Shorts" ? SHORTS_COST : existingItemName === "Park VII Jersey" ? TOP_COST : existingItemName === "Challenger Shorts" ? 27.95 : 22.95
+  };
+  // Use colour sets — tops/shorts take priority over sets for shared colours (e.g. Team Red is both)
+  if (TOP_COLOURS.has(colour)) return {
+    itemName: "Park VII Jersey",
+    cost: TOP_COST
+  };
+  if (SHORTS_COLOURS.has(colour) && !SET_COLOURS.has(colour)) return {
+    itemName: "Park III Shorts",
+    cost: SHORTS_COST
+  };
+  if (SET_COLOURS.has(colour)) return {
+    itemName: "Nike Park Senior Set",
+    cost: SET_COST
+  };
+  return {
+    itemName: "Nike Park Senior Set",
+    cost: SET_COST
+  };
+}
 var FLOOR_VINTED = 25,
   FLOOR_EBAY = 32.50,
   MAX_COMBO = 5;
@@ -992,17 +1024,17 @@ function getItemLabel(s) {
   var colour = s.colour || "";
   var itemName = s.itemName || "";
   var type = s.stockType || s.type || "set";
-  // itemName always takes priority - covers purchase items, stock items, line items
+  // itemName always takes priority - use specific product names
   if (itemName === "Miler Top") return "".concat(colour, " Miler Top").trim();
   if (itemName === "Challenger Shorts") return "".concat(colour, " Challenger Shorts").trim();
-  if (itemName === "Park VII Jersey") return "".concat(colour, " Dri-Fit T-Shirt").trim();
-  if (itemName === "Park III Shorts") return "".concat(colour, " Dri-Fit Shorts").trim();
-  if (itemName === "Nike Park Senior Set") return "".concat(colour, " Dri-Fit Set").trim();
+  if (itemName === "Park VII Jersey") return "".concat(colour, " Park VII Jersey").trim();
+  if (itemName === "Park III Shorts") return "".concat(colour, " Park III Shorts").trim();
+  if (itemName === "Nike Park Senior Set") return "".concat(colour, " Park Senior Set").trim();
   // Fall back to type
   if (type === "external") return "".concat(colour, " ").concat(itemName).trim();
-  if (type === "top") return "".concat(colour, " Dri-Fit T-Shirt").trim();
-  if (type === "shorts") return "".concat(colour, " Dri-Fit Shorts").trim();
-  return "".concat(colour, " Dri-Fit Set").trim();
+  if (type === "top") return "".concat(colour, " Park VII Jersey").trim();
+  if (type === "shorts") return "".concat(colour, " Park III Shorts").trim();
+  return "".concat(colour, " Park Senior Set").trim();
 }
 function normaliseColour(colour) {
   if (!colour) return colour;
@@ -3916,7 +3948,7 @@ function TabSales(_ref13) {
       colour: col,
       salePrice: parseFloat(form.salePrice),
       costOverride: isDrifit ? undefined : parseFloat(form.costOverride) || undefined,
-      itemName: isDrifit ? undefined : form.itemName || undefined,
+      itemName: isDrifit ? getItemFromColour(col).itemName : form.itemName || undefined,
       purchaseId: null,
       location: loc,
       saleDate: form.saleDate || new Date().toISOString().slice(0, 10)
@@ -4280,9 +4312,13 @@ function TabSales(_ref13) {
     value: form.colour,
     placeholder: "Pick or type...",
     onChange: function onChange(e) {
-      return setForm(function (p) {
+      var col = e.target.value;
+      var _getItemFromColour = getItemFromColour(col),
+        autoItem = _getItemFromColour.itemName;
+      setForm(function (p) {
         return _objectSpread(_objectSpread({}, p), {}, {
-          colour: e.target.value
+          colour: col,
+          itemName: autoItem
         });
       });
     }
@@ -4341,7 +4377,7 @@ function TabSales(_ref13) {
       fontSize: 10,
       marginTop: 2
     }
-  }, "Profit: +\xA3", (parseFloat(form.salePrice) - (form.costOverride || SET_COST)).toFixed(2))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, "Profit: +\xA3", (parseFloat(form.salePrice) - (form.costOverride || getItemFromColour(form.colour).cost)).toFixed(2))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       color: C.grey5,
       fontSize: 10,
@@ -9750,8 +9786,37 @@ function TabBirmingham(_ref25) {
     }
   }, "Add Stock Manually"), /*#__PURE__*/React.createElement("div", {
     style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      cursor: "pointer",
+      fontSize: 11,
+      color: C.grey5
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: addStockForm.mixedSizes,
+    onChange: function onChange(e) {
+      return setAddStockForm(function (p) {
+        return _objectSpread(_objectSpread({}, p), {}, {
+          mixedSizes: e.target.checked
+        });
+      });
+    },
+    style: {
+      cursor: "pointer"
+    }
+  }), "Mixed sizes (different top & shorts size)")), /*#__PURE__*/React.createElement("div", {
+    style: {
       display: "grid",
-      gridTemplateColumns: "1fr 1fr 1fr 1fr",
+      gridTemplateColumns: addStockForm.mixedSizes ? "1fr 1fr 1fr 1fr 1fr" : "1fr 1fr 1fr 1fr",
       gap: 10,
       marginBottom: 10
     }
@@ -9792,7 +9857,70 @@ function TabBirmingham(_ref25) {
       key: c,
       value: c
     });
+  }))), addStockForm.mixedSizes ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.grey5,
+      fontSize: 10,
+      marginBottom: 3,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em"
+    }
+  }, "Top Size"), /*#__PURE__*/React.createElement("select", {
+    style: {
+      background: C.grey2,
+      border: "1px solid ".concat(C.grey3),
+      color: C.offwhite,
+      borderRadius: 3,
+      padding: "6px 10px",
+      fontSize: 13,
+      width: "100%",
+      outline: "none"
+    },
+    value: addStockForm.topSize,
+    onChange: function onChange(e) {
+      return setAddStockForm(function (p) {
+        return _objectSpread(_objectSpread({}, p), {}, {
+          topSize: e.target.value,
+          size: e.target.value
+        });
+      });
+    }
+  }, SIZES.map(function (s) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: s
+    }, s);
   }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.grey5,
+      fontSize: 10,
+      marginBottom: 3,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em"
+    }
+  }, "Shorts Size"), /*#__PURE__*/React.createElement("select", {
+    style: {
+      background: C.grey2,
+      border: "1px solid ".concat(C.grey3),
+      color: C.offwhite,
+      borderRadius: 3,
+      padding: "6px 10px",
+      fontSize: 13,
+      width: "100%",
+      outline: "none"
+    },
+    value: addStockForm.shortsSize,
+    onChange: function onChange(e) {
+      return setAddStockForm(function (p) {
+        return _objectSpread(_objectSpread({}, p), {}, {
+          shortsSize: e.target.value
+        });
+      });
+    }
+  }, SIZES.map(function (s) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: s
+    }, s);
+  })))) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       color: C.grey5,
       fontSize: 10,
@@ -9815,7 +9943,9 @@ function TabBirmingham(_ref25) {
     onChange: function onChange(e) {
       return setAddStockForm(function (p) {
         return _objectSpread(_objectSpread({}, p), {}, {
-          size: e.target.value
+          size: e.target.value,
+          topSize: e.target.value,
+          shortsSize: e.target.value
         });
       });
     }
@@ -9893,17 +10023,28 @@ function TabBirmingham(_ref25) {
     onClick: function onClick() {
       var col = addStockForm.colour.trim();
       if (!col || !addStockForm.qty) return;
+      var _getItemFromColour2 = getItemFromColour(col),
+        autoItem = _getItemFromColour2.itemName,
+        autoCost = _getItemFromColour2.cost;
       var newItems = Array.from({
         length: parseInt(addStockForm.qty) || 1
       }, function () {
-        return {
+        return _objectSpread({
           colour: col,
           size: addStockForm.size,
           problem: false,
           status: addStockForm.status,
           location: "you",
-          orderedDate: new Date().toISOString().slice(0, 10)
-        };
+          orderedDate: new Date().toISOString().slice(0, 10),
+          stockType: autoItem === "Park VII Jersey" ? "top" : autoItem === "Park III Shorts" ? "shorts" : "set",
+          itemName: autoItem,
+          supplier: "Newitts",
+          costGBP: autoCost
+        }, addStockForm.mixedSizes && addStockForm.topSize !== addStockForm.shortsSize ? {
+          topSize: addStockForm.topSize,
+          shortsSize: addStockForm.shortsSize,
+          note: "Top ".concat(addStockForm.topSize, " / Shorts ").concat(addStockForm.shortsSize)
+        } : {});
       });
       setDriStock(function (p) {
         return [].concat(_toConsumableArray(p), newItems);
@@ -9911,6 +10052,9 @@ function TabBirmingham(_ref25) {
       setAddStockForm({
         colour: "White",
         size: "M",
+        topSize: "M",
+        shortsSize: "M",
+        mixedSizes: false,
         qty: "1",
         status: "in_stock"
       });
@@ -10319,6 +10463,9 @@ function TabStock(_ref37) {
   var _useState123 = useState({
       colour: "White",
       size: "M",
+      topSize: "M",
+      shortsSize: "M",
+      mixedSizes: false,
       qty: "1",
       status: "in_stock"
     }),
@@ -11328,156 +11475,213 @@ function TabStock(_ref37) {
         letterSpacing: "0.07em"
       }
     }, h);
-  }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(totalsMap).sort(function (a, b) {
-    return a[0].localeCompare(b[0]);
-  }).map(function (_ref55, i) {
-    var _ref56 = _slicedToArray(_ref55, 2),
-      k = _ref56[0],
-      v = _ref56[1];
-    var total = v.preorder + v.inStock;
-    var dem = demand[k] || 0;
-    var status = v.preorder > 0 ? "preorder" : "in_stock";
-    var removeKey = k + "-" + status;
-    var isConfirming = confirmRemove === removeKey;
-    return /*#__PURE__*/React.createElement("tr", {
-      key: k,
-      style: {
-        borderBottom: "1px solid ".concat(C.grey2),
-        background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)"
-      }
-    }, /*#__PURE__*/React.createElement("td", {
-      style: {
-        padding: "7px 9px",
-        fontWeight: 700,
-        fontSize: 11
-      }
-    }, getItemLabel(v)), /*#__PURE__*/React.createElement("td", {
-      style: {
-        padding: "7px 9px"
-      }
-    }, v.size), /*#__PURE__*/React.createElement("td", {
-      style: {
-        padding: "7px 9px",
-        fontFamily: "monospace",
-        color: v.preorder > 0 ? C.amber : C.grey5
-      }
-    }, v.preorder || "—"), /*#__PURE__*/React.createElement("td", {
-      style: {
-        padding: "7px 9px",
-        fontFamily: "monospace",
-        color: v.inStock > 0 ? C.green : C.grey5
-      }
-    }, v.inStock || "—"), /*#__PURE__*/React.createElement("td", {
-      style: {
-        padding: "7px 9px",
-        fontFamily: "monospace",
-        color: (v.sold || 0) > 0 ? C.purple : C.grey5
-      }
-    }, v.sold || "—"), /*#__PURE__*/React.createElement("td", {
-      style: {
-        padding: "7px 9px"
-      }
-    }, dem > 0 ? /*#__PURE__*/React.createElement(Tag, {
-      bg: "rgba(232,38,10,0.15)",
-      fg: C.red
-    }, dem) : /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.grey5,
-        fontSize: 11
-      }
-    }, "\u2014")), /*#__PURE__*/React.createElement("td", {
-      style: {
-        padding: "7px 9px"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 4
-      }
-    }, /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        var moved = false;
-        setDriStock(function (p) {
-          return p.map(function (s) {
-            if (!moved && s.colour === v.colour && s.size === v.size && s.status === status && s.location !== "birmingham" && !s.problem) {
-              moved = true;
-              return _objectSpread(_objectSpread({}, s), {}, {
-                location: "birmingham"
+  }))), /*#__PURE__*/React.createElement("tbody", null, function () {
+    // Group by itemName then sort within each group by colour+size
+    var GROUP_ORDER = ["Nike Park Senior Set", "Park VII Jersey", "Park III Shorts", "Miler Top", "Challenger Shorts"];
+    var grouped = {};
+    Object.entries(totalsMap).forEach(function (_ref55) {
+      var _ref56 = _slicedToArray(_ref55, 2),
+        k = _ref56[0],
+        v = _ref56[1];
+      var g = v.itemName || "Nike Park Senior Set";
+      if (!grouped[g]) grouped[g] = [];
+      grouped[g].push([k, v]);
+    });
+    var rows = [];
+    var rowIdx = 0;
+    GROUP_ORDER.forEach(function (grp) {
+      var items = grouped[grp];
+      if (!items || items.length === 0) return;
+      var grpLabel = grp === "Nike Park Senior Set" ? "Park Senior Sets" : grp === "Park VII Jersey" ? "Park VII Jerseys" : grp === "Park III Shorts" ? "Park III Shorts" : grp === "Miler Top" ? "Miler Tops" : "Challenger Shorts";
+      var grpTotal = items.reduce(function (a, _ref57) {
+        var _ref58 = _slicedToArray(_ref57, 2),
+          v = _ref58[1];
+        return a + v.preorder + v.inStock;
+      }, 0);
+      rows.push(/*#__PURE__*/React.createElement("tr", {
+        key: "grp-".concat(grp)
+      }, /*#__PURE__*/React.createElement("td", {
+        colSpan: 7,
+        style: {
+          padding: "6px 9px",
+          background: C.grey2,
+          color: C.grey5,
+          fontSize: 9,
+          fontWeight: 800,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em"
+        }
+      }, grpLabel, " ", /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.grey4,
+          fontWeight: 400
+        }
+      }, "(", grpTotal, " in stock)"))));
+      items.sort(function (a, b) {
+        return a[0].localeCompare(b[0]);
+      }).forEach(function (_ref59) {
+        var _ref60 = _slicedToArray(_ref59, 2),
+          k = _ref60[0],
+          v = _ref60[1];
+        var i = rowIdx++;
+        var dem = demand[k] || 0;
+        var status = v.preorder > 0 ? "preorder" : "in_stock";
+        var removeKey = k + "-" + status;
+        var isConfirming = confirmRemove === removeKey;
+        rows.push(/*#__PURE__*/React.createElement("tr", {
+          key: k,
+          style: {
+            borderBottom: "1px solid ".concat(C.grey2),
+            background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)"
+          }
+        }, /*#__PURE__*/React.createElement("td", {
+          style: {
+            padding: "7px 9px",
+            fontWeight: 700,
+            fontSize: 11
+          }
+        }, getItemLabel(v)), /*#__PURE__*/React.createElement("td", {
+          style: {
+            padding: "7px 9px"
+          }
+        }, v.topSize && v.shortsSize && v.topSize !== v.shortsSize ? /*#__PURE__*/React.createElement("span", {
+          style: {
+            fontSize: 10
+          }
+        }, /*#__PURE__*/React.createElement("span", {
+          style: {
+            color: C.grey5
+          }
+        }, "Top"), " ", v.topSize, " / ", /*#__PURE__*/React.createElement("span", {
+          style: {
+            color: C.grey5
+          }
+        }, "Shorts"), " ", v.shortsSize) : v.size), /*#__PURE__*/React.createElement("td", {
+          style: {
+            padding: "7px 9px",
+            fontFamily: "monospace",
+            color: v.preorder > 0 ? C.amber : C.grey5
+          }
+        }, v.preorder || "—"), /*#__PURE__*/React.createElement("td", {
+          style: {
+            padding: "7px 9px",
+            fontFamily: "monospace",
+            color: v.inStock > 0 ? C.green : C.grey5
+          }
+        }, v.inStock || "—"), /*#__PURE__*/React.createElement("td", {
+          style: {
+            padding: "7px 9px",
+            fontFamily: "monospace",
+            color: (v.sold || 0) > 0 ? C.purple : C.grey5
+          }
+        }, v.sold || "—"), /*#__PURE__*/React.createElement("td", {
+          style: {
+            padding: "7px 9px"
+          }
+        }, dem > 0 ? /*#__PURE__*/React.createElement(Tag, {
+          bg: "rgba(232,38,10,0.15)",
+          fg: C.red
+        }, dem) : /*#__PURE__*/React.createElement("span", {
+          style: {
+            color: C.grey5,
+            fontSize: 11
+          }
+        }, "\u2014")), /*#__PURE__*/React.createElement("td", {
+          style: {
+            padding: "7px 9px"
+          }
+        }, /*#__PURE__*/React.createElement("div", {
+          style: {
+            display: "flex",
+            gap: 4
+          }
+        }, /*#__PURE__*/React.createElement("button", {
+          onClick: function onClick() {
+            var moved = false;
+            setDriStock(function (p) {
+              return p.map(function (s) {
+                if (!moved && s.colour === v.colour && s.size === v.size && s.status === status && s.location !== "birmingham" && !s.problem) {
+                  moved = true;
+                  return _objectSpread(_objectSpread({}, s), {}, {
+                    location: "birmingham"
+                  });
+                }
+                return s;
               });
-            }
-            return s;
-          });
-        });
-      },
-      style: {
-        background: "rgba(168,85,247,0.1)",
-        border: "1px solid ".concat(C.purple),
-        color: C.purple,
-        borderRadius: 2,
-        padding: "2px 6px",
-        fontSize: 9,
-        fontWeight: 700,
-        cursor: "pointer",
-        textTransform: "uppercase"
-      }
-    }, "\u2192 Bham"), isConfirming ? /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 3,
-        alignItems: "center"
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.red,
-        fontSize: 9
-      }
-    }, "Remove?"), /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        return removeOneStock(v.colour, v.size, status);
-      },
-      style: {
-        background: C.red,
-        border: "none",
-        color: C.offwhite,
-        borderRadius: 2,
-        padding: "2px 6px",
-        fontSize: 9,
-        fontWeight: 700,
-        cursor: "pointer",
-        textTransform: "uppercase"
-      }
-    }, "Yes"), /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        return setConfirmRemove(null);
-      },
-      style: {
-        background: C.grey2,
-        border: "1px solid ".concat(C.grey3),
-        color: C.grey5,
-        borderRadius: 2,
-        padding: "2px 6px",
-        fontSize: 9,
-        fontWeight: 700,
-        cursor: "pointer",
-        textTransform: "uppercase"
-      }
-    }, "No")) : /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        return setConfirmRemove(removeKey);
-      },
-      style: {
-        background: "rgba(232,38,10,0.08)",
-        border: "1px solid rgba(232,38,10,0.3)",
-        color: C.red,
-        borderRadius: 2,
-        padding: "2px 7px",
-        fontSize: 9,
-        fontWeight: 700,
-        cursor: "pointer",
-        textTransform: "uppercase"
-      }
-    }, "\u2715"))));
-  })), /*#__PURE__*/React.createElement("tfoot", null, /*#__PURE__*/React.createElement("tr", {
+            });
+          },
+          style: {
+            background: "rgba(168,85,247,0.1)",
+            border: "1px solid ".concat(C.purple),
+            color: C.purple,
+            borderRadius: 2,
+            padding: "2px 6px",
+            fontSize: 9,
+            fontWeight: 700,
+            cursor: "pointer",
+            textTransform: "uppercase"
+          }
+        }, "\u2192 Bham"), isConfirming ? /*#__PURE__*/React.createElement("div", {
+          style: {
+            display: "flex",
+            gap: 3,
+            alignItems: "center"
+          }
+        }, /*#__PURE__*/React.createElement("span", {
+          style: {
+            color: C.red,
+            fontSize: 9
+          }
+        }, "Remove?"), /*#__PURE__*/React.createElement("button", {
+          onClick: function onClick() {
+            return removeOneStock(v.colour, v.size, status);
+          },
+          style: {
+            background: C.red,
+            border: "none",
+            color: C.offwhite,
+            borderRadius: 2,
+            padding: "2px 6px",
+            fontSize: 9,
+            fontWeight: 700,
+            cursor: "pointer",
+            textTransform: "uppercase"
+          }
+        }, "Yes"), /*#__PURE__*/React.createElement("button", {
+          onClick: function onClick() {
+            return setConfirmRemove(null);
+          },
+          style: {
+            background: C.grey2,
+            border: "1px solid ".concat(C.grey3),
+            color: C.grey5,
+            borderRadius: 2,
+            padding: "2px 6px",
+            fontSize: 9,
+            fontWeight: 700,
+            cursor: "pointer",
+            textTransform: "uppercase"
+          }
+        }, "No")) : /*#__PURE__*/React.createElement("button", {
+          onClick: function onClick() {
+            return setConfirmRemove(removeKey);
+          },
+          style: {
+            background: "rgba(232,38,10,0.08)",
+            border: "1px solid rgba(232,38,10,0.3)",
+            color: C.red,
+            borderRadius: 2,
+            padding: "2px 7px",
+            fontSize: 9,
+            fontWeight: 700,
+            cursor: "pointer",
+            textTransform: "uppercase"
+          }
+        }, "\u2715")))));
+      });
+    });
+    return rows;
+  }()), /*#__PURE__*/React.createElement("tfoot", null, /*#__PURE__*/React.createElement("tr", {
     style: {
       borderTop: "2px solid ".concat(C.grey2)
     }
@@ -11947,10 +12151,10 @@ function TabStock(_ref37) {
         gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))",
         gap: 5
       }
-    }, Object.entries(p.itemMap).sort().map(function (_ref57) {
-      var _ref58 = _slicedToArray(_ref57, 2),
-        k = _ref58[0],
-        qty = _ref58[1];
+    }, Object.entries(p.itemMap).sort().map(function (_ref61) {
+      var _ref62 = _slicedToArray(_ref61, 2),
+        k = _ref62[0],
+        qty = _ref62[1];
       var _k$split7 = k.split("-"),
         _k$split8 = _slicedToArray(_k$split7, 2),
         col = _k$split8[0],
@@ -12007,10 +12211,10 @@ function TabStock(_ref37) {
       acc[k] = (acc[k] || 0) + 1;
     });
     return acc;
-  }, {})).sort().map(function (_ref59) {
-    var _ref60 = _slicedToArray(_ref59, 2),
-      k = _ref60[0],
-      qty = _ref60[1];
+  }, {})).sort().map(function (_ref63) {
+    var _ref64 = _slicedToArray(_ref63, 2),
+      k = _ref64[0],
+      qty = _ref64[1];
     var _k$split9 = k.split("-"),
       _k$split0 = _slicedToArray(_k$split9, 2),
       col = _k$split0[0],
@@ -12059,9 +12263,9 @@ function TabStock(_ref37) {
 }
 
 // ── TAB: Cost Calculator ───────────────────────────────────────
-function TabCalc(_ref61) {
-  var chinese = _ref61.chinese,
-    setChinese = _ref61.setChinese;
+function TabCalc(_ref65) {
+  var chinese = _ref65.chinese,
+    setChinese = _ref65.setChinese;
   var _useState145 = useState(false),
     _useState146 = _slicedToArray(_useState145, 2),
     show = _useState146[0],
@@ -12163,12 +12367,12 @@ function TabCalc(_ref61) {
       gap: 10,
       marginBottom: 10
     }
-  }, [["Item Name", "item", "text", "Nike Air Force 1"], ["Colour", "colour", "text", "White"], ["Size", "size", "text", "UK9"], ["Cost MYR", "costMYR", "number", "250.00"], ["Shipping MYR", "shippingMYR", "number", "45.00"], ["Fixed fees MYR", "fixedMYR", "number", "10.00"], ["Wise Rate", "wiseRate", "number", "0.1902"], ["Note", "note", "text", "optional"]].map(function (_ref62) {
-    var _ref63 = _slicedToArray(_ref62, 4),
-      lbl = _ref63[0],
-      k = _ref63[1],
-      t = _ref63[2],
-      ph = _ref63[3];
+  }, [["Item Name", "item", "text", "Nike Air Force 1"], ["Colour", "colour", "text", "White"], ["Size", "size", "text", "UK9"], ["Cost MYR", "costMYR", "number", "250.00"], ["Shipping MYR", "shippingMYR", "number", "45.00"], ["Fixed fees MYR", "fixedMYR", "number", "10.00"], ["Wise Rate", "wiseRate", "number", "0.1902"], ["Note", "note", "text", "optional"]].map(function (_ref66) {
+    var _ref67 = _slicedToArray(_ref66, 4),
+      lbl = _ref67[0],
+      k = _ref67[1],
+      t = _ref67[2],
+      ph = _ref67[3];
     return /*#__PURE__*/React.createElement("div", {
       key: k
     }, /*#__PURE__*/React.createElement("div", {
@@ -12618,9 +12822,9 @@ function _supaLoadAll() {
         case 3:
           rows = _context8.v;
           out = {};
-          rows.forEach(function (_ref67) {
-            var key = _ref67.key,
-              value = _ref67.value;
+          rows.forEach(function (_ref71) {
+            var key = _ref71.key,
+              value = _ref71.value;
             return out[key] = value;
           });
           return _context8.a(2, out);
