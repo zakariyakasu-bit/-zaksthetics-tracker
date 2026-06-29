@@ -4170,6 +4170,7 @@ function TabSales(_ref15) {
   }
   function startEdit(s) {
     setEditId(s.id);
+    var hasDiffSizes = !!(s.topSize && s.shortsSize && s.topSize !== s.shortsSize);
     setEditForm({
       colour: s.colour,
       size: s.size,
@@ -4178,17 +4179,28 @@ function TabSales(_ref15) {
       status: s.status,
       username: s.username || "",
       saleDate: s.saleDate || "",
-      itemName: s.itemName || "",
+      itemName: s.itemName || "Nike Park Senior Set",
       costOverride: s.costOverride || "",
       datePending: s.datePending || "",
       dateShipped: s.dateShipped || "",
-      dateCompleted: s.dateCompleted || ""
+      dateCompleted: s.dateCompleted || "",
+      topSize: s.topSize || s.size,
+      shortsSize: s.shortsSize || s.size,
+      diffSizes: hasDiffSizes
     });
   }
   function saveEdit(id) {
+    var extra = editForm.diffSizes && editForm.itemName === "Nike Park Senior Set" && editForm.topSize !== editForm.shortsSize ? {
+      topSize: editForm.topSize,
+      shortsSize: editForm.shortsSize,
+      note: "Top ".concat(editForm.topSize, " / Shorts ").concat(editForm.shortsSize)
+    } : {
+      topSize: undefined,
+      shortsSize: undefined
+    };
     setSales(function (p) {
       return p.map(function (s) {
-        return s.id === id ? _objectSpread(_objectSpread(_objectSpread({}, s), editForm), {}, {
+        return s.id === id ? _objectSpread(_objectSpread(_objectSpread(_objectSpread({}, s), editForm), extra), {}, {
           salePrice: parseFloat(editForm.salePrice) || s.salePrice
         }) : s;
       });
@@ -5098,6 +5110,43 @@ function TabSales(_ref15) {
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
+        display: "flex",
+        gap: 5,
+        marginBottom: 8,
+        flexWrap: "wrap"
+      }
+    }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref21) {
+      var _ref22 = _slicedToArray(_ref21, 2),
+        k = _ref22[0],
+        lbl = _ref22[1];
+      var active = editForm.itemName === k;
+      return /*#__PURE__*/React.createElement("button", {
+        key: k,
+        onClick: function onClick() {
+          var firstColour = k === "Nike Park Senior Set" ? "White" : k === "Park VII Jersey" ? "University Blue" : k === "Park III Shorts" ? "University Blue" : k === "Challenger Shorts" ? "Black Silver" : "White Silver";
+          setEditForm(function (p) {
+            return _objectSpread(_objectSpread({}, p), {}, {
+              itemName: k,
+              colour: firstColour,
+              diffSizes: false,
+              shortsSize: p.size
+            });
+          });
+        },
+        style: {
+          background: active ? "rgba(255,255,255,0.12)" : "transparent",
+          border: "1px solid ".concat(active ? C.offwhite : C.grey3),
+          color: active ? C.offwhite : C.grey5,
+          borderRadius: 2,
+          padding: "3px 8px",
+          fontSize: 9,
+          fontWeight: 700,
+          cursor: "pointer",
+          textTransform: "uppercase"
+        }
+      }, lbl);
+    })), /*#__PURE__*/React.createElement("div", {
+      style: {
         display: "grid",
         gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr",
         gap: 6,
@@ -5134,7 +5183,7 @@ function TabSales(_ref15) {
       }
     }), /*#__PURE__*/React.createElement("datalist", {
       id: "edit-colours"
-    }, colours.map(function (c) {
+    }, getColoursForItem(editForm.itemName).map(function (c) {
       return /*#__PURE__*/React.createElement("option", {
         key: c,
         value: c
@@ -5147,7 +5196,7 @@ function TabSales(_ref15) {
         textTransform: "uppercase",
         letterSpacing: "0.06em"
       }
-    }, "Size"), /*#__PURE__*/React.createElement("input", {
+    }, editForm.itemName === "Nike Park Senior Set" && editForm.diffSizes ? "Top Size" : "Size"), /*#__PURE__*/React.createElement("select", {
       style: {
         background: C.grey3,
         border: "1px solid ".concat(C.grey3),
@@ -5156,18 +5205,74 @@ function TabSales(_ref15) {
         padding: "4px 6px",
         fontSize: 11,
         width: "100%",
-        outline: "none",
-        boxSizing: "border-box"
+        outline: "none"
       },
-      value: editForm.size || "",
+      value: editForm.size || "M",
       onChange: function onChange(e) {
         return setEditForm(function (p) {
           return _objectSpread(_objectSpread({}, p), {}, {
-            size: e.target.value
+            size: e.target.value,
+            topSize: e.target.value
           });
         });
       }
-    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    }, SIZES.map(function (s) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: s
+      }, s);
+    })), editForm.itemName === "Nike Park Senior Set" && /*#__PURE__*/React.createElement("label", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        color: C.grey5,
+        fontSize: 9,
+        cursor: "pointer",
+        marginTop: 3
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: editForm.diffSizes || false,
+      onChange: function onChange(e) {
+        return setEditForm(function (p) {
+          return _objectSpread(_objectSpread({}, p), {}, {
+            diffSizes: e.target.checked,
+            shortsSize: p.size
+          });
+        });
+      }
+    }), " Diff sizes")), editForm.itemName === "Nike Park Senior Set" && editForm.diffSizes && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: C.grey5,
+        fontSize: 9,
+        marginBottom: 2,
+        textTransform: "uppercase",
+        letterSpacing: "0.06em"
+      }
+    }, "Shorts Size"), /*#__PURE__*/React.createElement("select", {
+      style: {
+        background: C.grey3,
+        border: "1px solid ".concat(C.grey3),
+        color: C.offwhite,
+        borderRadius: 2,
+        padding: "4px 6px",
+        fontSize: 11,
+        width: "100%",
+        outline: "none"
+      },
+      value: editForm.shortsSize || "M",
+      onChange: function onChange(e) {
+        return setEditForm(function (p) {
+          return _objectSpread(_objectSpread({}, p), {}, {
+            shortsSize: e.target.value
+          });
+        });
+      }
+    }, SIZES.map(function (s) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: s
+      }, s);
+    }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       style: {
         color: C.grey5,
         fontSize: 9,
@@ -5610,14 +5715,14 @@ function getSaleStage(sale) {
   if (sale.status === "awaiting_stock") return 1;
   return 3;
 }
-function TabCustomers(_ref21) {
-  var customers = _ref21.customers,
-    setCustomers = _ref21.setCustomers,
-    sales = _ref21.sales,
-    setSales = _ref21.setSales,
-    colours = _ref21.colours,
-    stock = _ref21.stock,
-    onConvertRequest = _ref21.onConvertRequest;
+function TabCustomers(_ref23) {
+  var customers = _ref23.customers,
+    setCustomers = _ref23.setCustomers,
+    sales = _ref23.sales,
+    setSales = _ref23.setSales,
+    colours = _ref23.colours,
+    stock = _ref23.stock,
+    onConvertRequest = _ref23.onConvertRequest;
   var _useState35 = useState("list"),
     _useState36 = _slicedToArray(_useState35, 2),
     view = _useState36[0],
@@ -6736,10 +6841,10 @@ function TabCustomers(_ref21) {
 }
 
 // ── TAB: Mappings ───────────────────────────────────────────────
-function TabMappings(_ref22) {
-  var mappings = _ref22.mappings,
-    setMappings = _ref22.setMappings,
-    colours = _ref22.colours;
+function TabMappings(_ref24) {
+  var mappings = _ref24.mappings,
+    setMappings = _ref24.setMappings,
+    colours = _ref24.colours;
   var _useState57 = useState(""),
     _useState58 = _slicedToArray(_useState57, 2),
     newColourRaw = _useState58[0],
@@ -6803,14 +6908,14 @@ function TabMappings(_ref22) {
     });
     setConfirmDelete(null);
   }
-  var MappingTable = function MappingTable(_ref23) {
-    var type = _ref23.type,
-      title = _ref23.title,
-      newRaw = _ref23.newRaw,
-      setNewRaw = _ref23.setNewRaw,
-      newInternal = _ref23.newInternal,
-      setNewInternal = _ref23.setNewInternal,
-      internalOptions = _ref23.internalOptions;
+  var MappingTable = function MappingTable(_ref25) {
+    var type = _ref25.type,
+      title = _ref25.title,
+      newRaw = _ref25.newRaw,
+      setNewRaw = _ref25.setNewRaw,
+      newInternal = _ref25.newInternal,
+      setNewInternal = _ref25.setNewInternal,
+      internalOptions = _ref25.internalOptions;
     return /*#__PURE__*/React.createElement("div", {
       style: {
         marginBottom: 24
@@ -7199,20 +7304,20 @@ function normaliseValue(raw, mappingList, autoAdd, setMappings, type) {
     matched: false
   };
 }
-function TabPurchases(_ref24) {
+function TabPurchases(_ref26) {
   var _extractedData$total, _matchedPurchase$item, _matchedPurchase$item2;
-  var purchases = _ref24.purchases,
-    setPurchases = _ref24.setPurchases,
-    driStock = _ref24.driStock,
-    setDriStock = _ref24.setDriStock,
-    chinese = _ref24.chinese,
-    setChinese = _ref24.setChinese,
-    colours = _ref24.colours,
-    setColours = _ref24.setColours,
-    mappings = _ref24.mappings,
-    setMappings = _ref24.setMappings,
-    stock = _ref24.stock,
-    setStock = _ref24.setStock;
+  var purchases = _ref26.purchases,
+    setPurchases = _ref26.setPurchases,
+    driStock = _ref26.driStock,
+    setDriStock = _ref26.setDriStock,
+    chinese = _ref26.chinese,
+    setChinese = _ref26.setChinese,
+    colours = _ref26.colours,
+    setColours = _ref26.setColours,
+    mappings = _ref26.mappings,
+    setMappings = _ref26.setMappings,
+    stock = _ref26.stock,
+    setStock = _ref26.setStock;
   var _useState71 = useState("list"),
     _useState72 = _slicedToArray(_useState71, 2),
     view = _useState72[0],
@@ -8965,11 +9070,11 @@ function TabPurchases(_ref24) {
 
 // ── TAB: Birmingham Stock ──────────────────────────────────────
 
-function ChineseEditForm(_ref25) {
-  var item = _ref25.item,
-    setChinese = _ref25.setChinese,
-    colours = _ref25.colours,
-    onClose = _ref25.onClose;
+function ChineseEditForm(_ref27) {
+  var item = _ref27.item,
+    setChinese = _ref27.setChinese,
+    colours = _ref27.colours,
+    onClose = _ref27.onClose;
   var _useState99 = useState({
       item: item.item || "",
       colour: item.colour || "",
@@ -9300,10 +9405,10 @@ function ChineseEditForm(_ref25) {
     }
   }, "Cancel")));
 }
-function ChineseSaleBtn(_ref26) {
+function ChineseSaleBtn(_ref28) {
   var _item$salePrice;
-  var item = _ref26.item,
-    setChinese = _ref26.setChinese;
+  var item = _ref28.item,
+    setChinese = _ref28.setChinese;
   var _useState101 = useState(false),
     _useState102 = _slicedToArray(_useState101, 2),
     show = _useState102[0],
@@ -9400,16 +9505,16 @@ function ChineseSaleBtn(_ref26) {
     }
   }, "\xA3 Sold");
 }
-function TabBirmingham(_ref27) {
-  var chinese = _ref27.chinese,
-    setChinese = _ref27.setChinese,
-    driStock = _ref27.driStock,
-    setDriStock = _ref27.setDriStock,
-    acceptedOffers = _ref27.acceptedOffers,
-    purchases = _ref27.purchases,
-    colours = _ref27.colours,
-    stock = _ref27.stock,
-    setStock = _ref27.setStock;
+function TabBirmingham(_ref29) {
+  var chinese = _ref29.chinese,
+    setChinese = _ref29.setChinese,
+    driStock = _ref29.driStock,
+    setDriStock = _ref29.setDriStock,
+    acceptedOffers = _ref29.acceptedOffers,
+    purchases = _ref29.purchases,
+    colours = _ref29.colours,
+    stock = _ref29.stock,
+    setStock = _ref29.setStock;
   var _useState105 = useState("overview"),
     _useState106 = _slicedToArray(_useState105, 2),
     subTab = _useState106[0],
@@ -9587,11 +9692,11 @@ function TabBirmingham(_ref27) {
       });
     });
   }
-  var BhamStockTable = function BhamStockTable(_ref28) {
-    var data = _ref28.data,
-      colourFn = _ref28.colourFn,
-      showMarkArrived = _ref28.showMarkArrived,
-      stockStatus = _ref28.stockStatus;
+  var BhamStockTable = function BhamStockTable(_ref30) {
+    var data = _ref30.data,
+      colourFn = _ref30.colourFn,
+      showMarkArrived = _ref30.showMarkArrived,
+      stockStatus = _ref30.stockStatus;
     return /*#__PURE__*/React.createElement("div", {
       style: {
         background: C.grey1,
@@ -9621,10 +9726,10 @@ function TabBirmingham(_ref27) {
           letterSpacing: "0.07em"
         }
       }, h);
-    }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(data).sort().map(function (_ref29, i) {
-      var _ref30 = _slicedToArray(_ref29, 2),
-        k = _ref30[0],
-        v = _ref30[1];
+    }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(data).sort().map(function (_ref31, i) {
+      var _ref32 = _slicedToArray(_ref31, 2),
+        k = _ref32[0],
+        v = _ref32[1];
       var demKey = v.colour + "-" + v.size;
       var dem = demand[demKey] || 0;
       var removeKey = k + "-" + (stockStatus || "in_stock");
@@ -9831,10 +9936,10 @@ function TabBirmingham(_ref27) {
       marginBottom: 14,
       overflowX: "auto"
     }
-  }, [["overview", "Overview"], ["preorder", "Pre-ordered (" + bhamPreOrdered.length + ")"], ["sell", "With Friend (" + bhamToSell.length + ")"], ["history", "History"]].map(function (_ref31) {
-    var _ref32 = _slicedToArray(_ref31, 2),
-      k = _ref32[0],
-      lbl = _ref32[1];
+  }, [["overview", "Overview"], ["preorder", "Pre-ordered (" + bhamPreOrdered.length + ")"], ["sell", "With Friend (" + bhamToSell.length + ")"], ["history", "History"]].map(function (_ref33) {
+    var _ref34 = _slicedToArray(_ref33, 2),
+      k = _ref34[0],
+      lbl = _ref34[1];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       onClick: function onClick() {
@@ -9862,12 +9967,12 @@ function TabBirmingham(_ref27) {
       flexWrap: "wrap",
       marginBottom: 14
     }
-  }, [["Pre-ordered", bhamPreOrdered.length, "on the way", C.amber], ["With Friend", bhamToSell.length, "delivered", C.purple], ["Sold", bhamSold.length, "completed", C.green]].map(function (_ref33) {
-    var _ref34 = _slicedToArray(_ref33, 4),
-      lbl = _ref34[0],
-      val = _ref34[1],
-      sub = _ref34[2],
-      col = _ref34[3];
+  }, [["Pre-ordered", bhamPreOrdered.length, "on the way", C.amber], ["With Friend", bhamToSell.length, "delivered", C.purple], ["Sold", bhamSold.length, "completed", C.green]].map(function (_ref35) {
+    var _ref36 = _slicedToArray(_ref35, 4),
+      lbl = _ref36[0],
+      val = _ref36[1],
+      sub = _ref36[2],
+      col = _ref36[3];
     return /*#__PURE__*/React.createElement("div", {
       key: lbl,
       style: {
@@ -10521,10 +10626,10 @@ function TabBirmingham(_ref27) {
     }, h);
   }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(totalsMap).sort(function (a, b) {
     return a[0].localeCompare(b[0]);
-  }).map(function (_ref35, i) {
-    var _ref36 = _slicedToArray(_ref35, 2),
-      k = _ref36[0],
-      v = _ref36[1];
+  }).map(function (_ref37, i) {
+    var _ref38 = _slicedToArray(_ref37, 2),
+      k = _ref38[0],
+      v = _ref38[1];
     var total = v.preorder + v.inStock;
     var dem = demand[k] || 0;
     var status = v.preorder > 0 ? "preorder" : "in_stock";
@@ -10807,10 +10912,10 @@ function TabBirmingham(_ref27) {
         gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))",
         gap: 5
       }
-    }, Object.entries(itemMap).sort().map(function (_ref37) {
-      var _ref38 = _slicedToArray(_ref37, 2),
-        k = _ref38[0],
-        qty = _ref38[1];
+    }, Object.entries(itemMap).sort().map(function (_ref39) {
+      var _ref40 = _slicedToArray(_ref39, 2),
+        k = _ref40[0],
+        qty = _ref40[1];
       var _k$split3 = k.split("-"),
         _k$split4 = _slicedToArray(_k$split3, 2),
         col = _k$split4[0],
@@ -10840,21 +10945,21 @@ function TabBirmingham(_ref27) {
     })));
   })));
 }
-function TabStock(_ref39) {
-  var driStock = _ref39.driStock,
-    setDriStock = _ref39.setDriStock,
-    acceptedOffers = _ref39.acceptedOffers,
-    purchases = _ref39.purchases,
-    setPurchases = _ref39.setPurchases,
-    chinese = _ref39.chinese,
-    setChinese = _ref39.setChinese,
-    colours = _ref39.colours,
-    setOffers = _ref39.setOffers,
-    sales = _ref39.sales,
-    setSales = _ref39.setSales,
-    bhamSales = _ref39.bhamSales,
-    stock = _ref39.stock,
-    setStock = _ref39.setStock;
+function TabStock(_ref41) {
+  var driStock = _ref41.driStock,
+    setDriStock = _ref41.setDriStock,
+    acceptedOffers = _ref41.acceptedOffers,
+    purchases = _ref41.purchases,
+    setPurchases = _ref41.setPurchases,
+    chinese = _ref41.chinese,
+    setChinese = _ref41.setChinese,
+    colours = _ref41.colours,
+    setOffers = _ref41.setOffers,
+    sales = _ref41.sales,
+    setSales = _ref41.setSales,
+    bhamSales = _ref41.bhamSales,
+    stock = _ref41.stock,
+    setStock = _ref41.setStock;
   var _useState123 = useState("overview"),
     _useState124 = _slicedToArray(_useState123, 2),
     subTab = _useState124[0],
@@ -10929,10 +11034,10 @@ function TabStock(_ref39) {
         requiredCount[k] = (requiredCount[k] || 0) + 1;
       });
       // Only mark the NET difference — makes sync fully idempotent
-      Object.entries(requiredCount).forEach(function (_ref40) {
-        var _ref41 = _slicedToArray(_ref40, 2),
-          k = _ref41[0],
-          needed = _ref41[1];
+      Object.entries(requiredCount).forEach(function (_ref42) {
+        var _ref43 = _slicedToArray(_ref42, 2),
+          k = _ref43[0],
+          needed = _ref43[1];
         var extra = needed - (alreadySoldCount[k] || 0);
         if (extra <= 0) return;
         var _k$split5 = k.split("-"),
@@ -11026,16 +11131,16 @@ function TabStock(_ref39) {
 
   // Combined demand
   var demand = {};
-  Object.entries(offerDemand).forEach(function (_ref42) {
-    var _ref43 = _slicedToArray(_ref42, 2),
-      k = _ref43[0],
-      n = _ref43[1];
-    return demand[k] = (demand[k] || 0) + n;
-  });
-  Object.entries(salesDemand).forEach(function (_ref44) {
+  Object.entries(offerDemand).forEach(function (_ref44) {
     var _ref45 = _slicedToArray(_ref44, 2),
       k = _ref45[0],
       n = _ref45[1];
+    return demand[k] = (demand[k] || 0) + n;
+  });
+  Object.entries(salesDemand).forEach(function (_ref46) {
+    var _ref47 = _slicedToArray(_ref46, 2),
+      k = _ref47[0],
+      n = _ref47[1];
     return demand[k] = (demand[k] || 0) + n;
   });
 
@@ -11151,10 +11256,10 @@ function TabStock(_ref39) {
       });
     });
   }
-  var uncovered = Object.entries(demand).filter(function (_ref46) {
-    var _ref47 = _slicedToArray(_ref46, 2),
-      k = _ref47[0],
-      n = _ref47[1];
+  var uncovered = Object.entries(demand).filter(function (_ref48) {
+    var _ref49 = _slicedToArray(_ref48, 2),
+      k = _ref49[0],
+      n = _ref49[1];
     return (availableMap[k] || 0) < n;
   });
 
@@ -11182,11 +11287,11 @@ function TabStock(_ref39) {
     acc[k].qty++;
     return acc;
   }, {});
-  var StockTable = function StockTable(_ref48) {
-    var data = _ref48.data,
-      colourFn = _ref48.colourFn,
-      showMarkArrived = _ref48.showMarkArrived,
-      stockStatus = _ref48.stockStatus;
+  var StockTable = function StockTable(_ref50) {
+    var data = _ref50.data,
+      colourFn = _ref50.colourFn,
+      showMarkArrived = _ref50.showMarkArrived,
+      stockStatus = _ref50.stockStatus;
     return /*#__PURE__*/React.createElement("div", {
       style: {
         background: C.grey1,
@@ -11216,10 +11321,10 @@ function TabStock(_ref39) {
           letterSpacing: "0.07em"
         }
       }, h);
-    }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(data).sort().map(function (_ref49, i) {
-      var _ref50 = _slicedToArray(_ref49, 2),
-        k = _ref50[0],
-        v = _ref50[1];
+    }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(data).sort().map(function (_ref51, i) {
+      var _ref52 = _slicedToArray(_ref51, 2),
+        k = _ref52[0],
+        v = _ref52[1];
       var demKey = v.colour + "-" + v.size;
       var dem = demand[demKey] || 0;
       var removeKey = k + "-" + (stockStatus || "in_stock");
@@ -11415,10 +11520,10 @@ function TabStock(_ref39) {
       marginBottom: 14,
       overflowX: "auto"
     }
-  }, [["overview", "Overview"], ["preorder", "Pre-ordered (" + preOrdered.length + ")"], ["sell", "To Sell (" + toSell.length + ")"], ["history", "History"]].map(function (_ref51) {
-    var _ref52 = _slicedToArray(_ref51, 2),
-      k = _ref52[0],
-      lbl = _ref52[1];
+  }, [["overview", "Overview"], ["preorder", "Pre-ordered (" + preOrdered.length + ")"], ["sell", "To Sell (" + toSell.length + ")"], ["history", "History"]].map(function (_ref53) {
+    var _ref54 = _slicedToArray(_ref53, 2),
+      k = _ref54[0],
+      lbl = _ref54[1];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       onClick: function onClick() {
@@ -11446,12 +11551,12 @@ function TabStock(_ref39) {
       flexWrap: "wrap",
       marginBottom: 14
     }
-  }, [["Pre-ordered", preOrdered.length, "on the way", C.amber], ["Ready to Sell", toSell.length, "in hand", C.green], ["Accepted Offers", acceptedOffers.length, uncovered.length > 0 ? uncovered.length + " not covered" : "all covered", C.red]].map(function (_ref53) {
-    var _ref54 = _slicedToArray(_ref53, 4),
-      lbl = _ref54[0],
-      val = _ref54[1],
-      sub = _ref54[2],
-      col = _ref54[3];
+  }, [["Pre-ordered", preOrdered.length, "on the way", C.amber], ["Ready to Sell", toSell.length, "in hand", C.green], ["Accepted Offers", acceptedOffers.length, uncovered.length > 0 ? uncovered.length + " not covered" : "all covered", C.red]].map(function (_ref55) {
+    var _ref56 = _slicedToArray(_ref55, 4),
+      lbl = _ref56[0],
+      val = _ref56[1],
+      sub = _ref56[2],
+      col = _ref56[3];
     return /*#__PURE__*/React.createElement("div", {
       key: lbl,
       style: {
@@ -11518,10 +11623,10 @@ function TabStock(_ref39) {
       textTransform: "uppercase",
       letterSpacing: "0.05em"
     }
-  }, "\u21BB Refresh")), Object.entries(demand).map(function (_ref55) {
-    var _ref56 = _slicedToArray(_ref55, 2),
-      k = _ref56[0],
-      n = _ref56[1];
+  }, "\u21BB Refresh")), Object.entries(demand).map(function (_ref57) {
+    var _ref58 = _slicedToArray(_ref57, 2),
+      k = _ref58[0],
+      n = _ref58[1];
     // Key format is colour-size - split on last hyphen to handle colours with hyphens
     var lastDash = k.lastIndexOf("-");
     var col = k.slice(0, lastDash);
@@ -11882,10 +11987,10 @@ function TabStock(_ref39) {
     // Group by itemName then sort within each group by colour+size
     var GROUP_ORDER = ["Nike Park Senior Set", "Park VII Jersey", "Park III Shorts", "Miler Top", "Challenger Shorts"];
     var grouped = {};
-    Object.entries(totalsMap).forEach(function (_ref57) {
-      var _ref58 = _slicedToArray(_ref57, 2),
-        k = _ref58[0],
-        v = _ref58[1];
+    Object.entries(totalsMap).forEach(function (_ref59) {
+      var _ref60 = _slicedToArray(_ref59, 2),
+        k = _ref60[0],
+        v = _ref60[1];
       var g = v.itemName || "Nike Park Senior Set";
       if (!grouped[g]) grouped[g] = [];
       grouped[g].push([k, v]);
@@ -11896,9 +12001,9 @@ function TabStock(_ref39) {
       var items = grouped[grp];
       if (!items || items.length === 0) return;
       var grpLabel = grp === "Nike Park Senior Set" ? "Park Senior Sets" : grp === "Park VII Jersey" ? "Park VII Jerseys" : grp === "Park III Shorts" ? "Park III Shorts" : grp === "Miler Top" ? "Miler Tops" : "Challenger Shorts";
-      var grpTotal = items.reduce(function (a, _ref59) {
-        var _ref60 = _slicedToArray(_ref59, 2),
-          v = _ref60[1];
+      var grpTotal = items.reduce(function (a, _ref61) {
+        var _ref62 = _slicedToArray(_ref61, 2),
+          v = _ref62[1];
         return a + v.preorder + v.inStock;
       }, 0);
       rows.push(/*#__PURE__*/React.createElement("tr", {
@@ -11922,10 +12027,10 @@ function TabStock(_ref39) {
       }, "(", grpTotal, " in stock)"))));
       items.sort(function (a, b) {
         return a[0].localeCompare(b[0]);
-      }).forEach(function (_ref61) {
-        var _ref62 = _slicedToArray(_ref61, 2),
-          k = _ref62[0],
-          v = _ref62[1];
+      }).forEach(function (_ref63) {
+        var _ref64 = _slicedToArray(_ref63, 2),
+          k = _ref64[0],
+          v = _ref64[1];
         var i = rowIdx++;
         var dem = demand[k] || 0;
         var status = v.preorder > 0 ? "preorder" : "in_stock";
@@ -12660,10 +12765,10 @@ function TabStock(_ref39) {
         gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))",
         gap: 5
       }
-    }, Object.entries(p.itemMap).sort().map(function (_ref63) {
-      var _ref64 = _slicedToArray(_ref63, 2),
-        k = _ref64[0],
-        qty = _ref64[1];
+    }, Object.entries(p.itemMap).sort().map(function (_ref65) {
+      var _ref66 = _slicedToArray(_ref65, 2),
+        k = _ref66[0],
+        qty = _ref66[1];
       var _k$split7 = k.split("-"),
         _k$split8 = _slicedToArray(_k$split7, 2),
         col = _k$split8[0],
@@ -12720,10 +12825,10 @@ function TabStock(_ref39) {
       acc[k] = (acc[k] || 0) + 1;
     });
     return acc;
-  }, {})).sort().map(function (_ref65) {
-    var _ref66 = _slicedToArray(_ref65, 2),
-      k = _ref66[0],
-      qty = _ref66[1];
+  }, {})).sort().map(function (_ref67) {
+    var _ref68 = _slicedToArray(_ref67, 2),
+      k = _ref68[0],
+      qty = _ref68[1];
     var _k$split9 = k.split("-"),
       _k$split0 = _slicedToArray(_k$split9, 2),
       col = _k$split0[0],
@@ -12772,9 +12877,9 @@ function TabStock(_ref39) {
 }
 
 // ── TAB: Cost Calculator ───────────────────────────────────────
-function TabCalc(_ref67) {
-  var chinese = _ref67.chinese,
-    setChinese = _ref67.setChinese;
+function TabCalc(_ref69) {
+  var chinese = _ref69.chinese,
+    setChinese = _ref69.setChinese;
   var _useState149 = useState(false),
     _useState150 = _slicedToArray(_useState149, 2),
     show = _useState150[0],
@@ -12876,12 +12981,12 @@ function TabCalc(_ref67) {
       gap: 10,
       marginBottom: 10
     }
-  }, [["Item Name", "item", "text", "Nike Air Force 1"], ["Colour", "colour", "text", "White"], ["Size", "size", "text", "UK9"], ["Cost MYR", "costMYR", "number", "250.00"], ["Shipping MYR", "shippingMYR", "number", "45.00"], ["Fixed fees MYR", "fixedMYR", "number", "10.00"], ["Wise Rate", "wiseRate", "number", "0.1902"], ["Note", "note", "text", "optional"]].map(function (_ref68) {
-    var _ref69 = _slicedToArray(_ref68, 4),
-      lbl = _ref69[0],
-      k = _ref69[1],
-      t = _ref69[2],
-      ph = _ref69[3];
+  }, [["Item Name", "item", "text", "Nike Air Force 1"], ["Colour", "colour", "text", "White"], ["Size", "size", "text", "UK9"], ["Cost MYR", "costMYR", "number", "250.00"], ["Shipping MYR", "shippingMYR", "number", "45.00"], ["Fixed fees MYR", "fixedMYR", "number", "10.00"], ["Wise Rate", "wiseRate", "number", "0.1902"], ["Note", "note", "text", "optional"]].map(function (_ref70) {
+    var _ref71 = _slicedToArray(_ref70, 4),
+      lbl = _ref71[0],
+      k = _ref71[1],
+      t = _ref71[2],
+      ph = _ref71[3];
     return /*#__PURE__*/React.createElement("div", {
       key: k
     }, /*#__PURE__*/React.createElement("div", {
@@ -13331,9 +13436,9 @@ function _supaLoadAll() {
         case 3:
           rows = _context8.v;
           out = {};
-          rows.forEach(function (_ref73) {
-            var key = _ref73.key,
-              value = _ref73.value;
+          rows.forEach(function (_ref75) {
+            var key = _ref75.key,
+              value = _ref75.value;
             return out[key] = value;
           });
           return _context8.a(2, out);
