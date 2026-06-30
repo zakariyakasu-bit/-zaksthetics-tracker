@@ -4008,13 +4008,17 @@ function TabSales(_ref15) {
   }, [sales, bhamSales, purchases, sortDesc]);
 
   // ── Stock availability check ──────────────────────────────────
-  function checkStock(colour, size, location) {
+  function checkStock(colour, size, location, itemName) {
     var loc = location === "birmingham" ? "birmingham" : "you";
+    // Match by itemName when available, otherwise colour+size only
+    var matchItem = function matchItem(s) {
+      return !itemName || !s.itemName || s.itemName === itemName;
+    };
     var inHand = driStock.filter(function (s) {
-      return !s.problem && s.status === "in_stock" && s.location === loc && s.colour === colour && s.size === size;
+      return !s.problem && s.status === "in_stock" && s.location === loc && normaliseColour(s.colour) === normaliseColour(colour) && s.size === size && matchItem(s);
     }).length;
     var preorder = driStock.filter(function (s) {
-      return !s.problem && s.status === "preorder" && s.location === loc && s.colour === colour && s.size === size;
+      return !s.problem && s.status === "preorder" && s.location === loc && normaliseColour(s.colour) === normaliseColour(colour) && s.size === size && matchItem(s);
     }).length;
     if (inHand > 0) return {
       status: "ok",
@@ -4703,7 +4707,7 @@ function TabSales(_ref15) {
     }
   }))), form.itemType === "drifit" && form.colour && form.size && function () {
     var loc = form.platform === "Birms" ? "birmingham" : "london";
-    var check = checkStock(form.colour, form.size, loc);
+    var check = checkStock(form.colour, form.size, loc, form.itemName);
     if (check.status === "ok") return /*#__PURE__*/React.createElement("div", {
       style: {
         color: C.green,
@@ -4958,7 +4962,7 @@ function TabSales(_ref15) {
     var sc = statusCol(sale.status);
     var isEditing = editId === sale.id;
     var isLegacy = sale.source === "bham";
-    var stockCheck = sale.itemType === "drifit" && !isLegacy ? checkStock(sale.colour, sale.size, sale.location) : null;
+    var stockCheck = sale.itemType === "drifit" && !isLegacy ? checkStock(sale.colour, sale.size, sale.location, sale.itemName) : null;
 
     // 6 stages with dates
     var stages = [{
@@ -9753,7 +9757,7 @@ function TabBirmingham(_ref29) {
       var _ref32 = _slicedToArray(_ref31, 2),
         k = _ref32[0],
         v = _ref32[1];
-      var demKey = v.colour + "-" + v.size;
+      var demKey = normaliseColour(v.colour) + "-" + v.size;
       var dem = demand[demKey] || 0;
       var removeKey = k + "-" + (stockStatus || "in_stock");
       var isConfirming = confirmRemoveBham === removeKey;
@@ -11134,13 +11138,13 @@ function TabStock(_ref41) {
   // Offer demand
   var offerDemand = {};
   acceptedOffers.forEach(function (o) {
-    var k = o.colour + "-" + o.size;
+    var k = normaliseColour(o.colour) + "-" + o.size;
     offerDemand[k] = (offerDemand[k] || 0) + 1;
   });
 
   // Sales demand - awaiting_stock and pending_delivery Dri-Fit London sales
   var allActiveSales = [].concat(_toConsumableArray((sales || []).filter(function (s) {
-    return ["awaiting_stock", "pending_delivery"].includes(s.status) && s.platform !== "Birms" && !s.itemType || s.itemType === "drifit";
+    return ["awaiting_stock", "pending_delivery"].includes(s.status) && s.platform !== "Birms" && (s.itemType === "drifit" || !s.itemType);
   })), _toConsumableArray((bhamSales || []).filter(function (s) {
     return !s.status || s.status === "pending";
   })));
@@ -11148,7 +11152,7 @@ function TabStock(_ref41) {
   (sales || []).filter(function (s) {
     return s.status === "awaiting_stock" && (s.itemType === "drifit" || !s.itemType) && s.platform !== "Birms";
   }).forEach(function (s) {
-    var k = s.colour + "-" + s.size;
+    var k = normaliseColour(s.colour) + "-" + s.size;
     salesDemand[k] = (salesDemand[k] || 0) + 1;
   });
 
@@ -11172,7 +11176,7 @@ function TabStock(_ref41) {
   driStock.filter(function (s) {
     return !s.problem && s.status !== "sold" && s.location !== "birmingham";
   }).forEach(function (s) {
-    var k = s.colour + "-" + s.size;
+    var k = normaliseColour(s.colour) + "-" + s.size;
     availableMap[k] = (availableMap[k] || 0) + 1;
   });
   var preorderMap = {};
@@ -11348,7 +11352,7 @@ function TabStock(_ref41) {
       var _ref52 = _slicedToArray(_ref51, 2),
         k = _ref52[0],
         v = _ref52[1];
-      var demKey = v.colour + "-" + v.size;
+      var demKey = normaliseColour(v.colour) + "-" + v.size;
       var dem = demand[demKey] || 0;
       var removeKey = k + "-" + (stockStatus || "in_stock");
       var isConfirming = confirmRemove === removeKey;
@@ -12055,7 +12059,8 @@ function TabStock(_ref41) {
           k = _ref64[0],
           v = _ref64[1];
         var i = rowIdx++;
-        var dem = demand[k] || 0;
+        var demKey = normaliseColour(v.colour) + "-" + v.size;
+        var dem = demand[demKey] || 0;
         var status = v.preorder > 0 ? "preorder" : "in_stock";
         var removeKey = k + "-" + status;
         var isConfirming = confirmRemove === removeKey;
