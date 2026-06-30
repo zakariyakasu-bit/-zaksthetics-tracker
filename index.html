@@ -2594,6 +2594,8 @@ function TabOffers(_ref9) {
               return s.offerId === o.id;
             });
             if (!alreadyLogged) {
+              var offerTopSize = o.shortsSize && o.size !== o.shortsSize ? o.size : undefined;
+              var offerShortsSize = o.shortsSize && o.size !== o.shortsSize ? o.shortsSize : undefined;
               setSales(function (prev) {
                 return [].concat(_toConsumableArray(prev), [{
                   id: Date.now(),
@@ -2602,8 +2604,8 @@ function TabOffers(_ref9) {
                   itemName: o.itemName || "Nike Park Senior Set",
                   colour: o.colour,
                   size: o.size,
-                  topSize: o.topSize || undefined,
-                  shortsSize: o.shortsSize || undefined,
+                  topSize: offerTopSize,
+                  shortsSize: offerShortsSize,
                   salePrice: o.offerPrice,
                   platform: o.platform,
                   purchaseId: null,
@@ -2663,10 +2665,17 @@ function TabOffers(_ref9) {
     var warns = [];
     if (price < FLOOR_VINTED) warns.push("Below \xA3".concat(FLOOR_VINTED, " floor"));
     if (form.platform === "eBay" && price < FLOOR_EBAY) warns.push("eBay min \xA3".concat(FLOOR_EBAY));
+    var offerExtra = form.diffSizes && form.itemName === "Nike Park Senior Set" && form.shortsSize && form.size !== form.shortsSize ? {
+      topSize: form.size,
+      shortsSize: form.shortsSize
+    } : {
+      topSize: undefined,
+      shortsSize: undefined
+    };
     setOffers(function (p) {
-      return [].concat(_toConsumableArray(p), [_objectSpread(_objectSpread({
+      return [].concat(_toConsumableArray(p), [_objectSpread(_objectSpread(_objectSpread({
         id: Date.now()
-      }, form), {}, {
+      }, form), offerExtra), {}, {
         offerPrice: price,
         status: "pending",
         note: warns.join(" · ") || form.note
@@ -4092,6 +4101,8 @@ function TabSales(_ref15) {
         colour: line.col,
         size: line.size,
         itemName: isDrifit ? line.itemName : form.itemName || undefined,
+        topSize: line.topSize || undefined,
+        shortsSize: line.shortsSize || undefined,
         username: form.username,
         platform: form.platform,
         expressDelivery: form.expressDelivery,
@@ -5012,7 +5023,19 @@ function TabSales(_ref15) {
         fontWeight: 900,
         fontSize: 13
       }
-    }, String(idx + 1).padStart(2, "0"), " \xB7 ", sale.itemName || sale.colour, " \xB7 ", sale.size), /*#__PURE__*/React.createElement(Tag, {
+    }, String(idx + 1).padStart(2, "0"), " \xB7 ", getItemLabel(sale) || sale.colour, " \xB7 ", sale.topSize && sale.shortsSize && sale.topSize !== sale.shortsSize ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 400
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        opacity: 0.6
+      }
+    }, "Top"), " ", sale.topSize, " / ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        opacity: 0.6
+      }
+    }, "Shorts"), " ", sale.shortsSize) : sale.size), /*#__PURE__*/React.createElement(Tag, {
       bg: C.grey2
     }, sale.platform), /*#__PURE__*/React.createElement(Tag, {
       bg: "rgba(".concat(sc === C.green ? "34,197,94" : sc === C.amber ? "245,158,11" : sc === C.blue ? "59,130,246" : sc === C.purple ? "168,85,247" : "155,155,155", ",0.15)"),
@@ -13656,7 +13679,12 @@ function App() {
       }
       // Simple key/value replacements
       if (remote.zak_bham_sales) setBhamSales(remote.zak_bham_sales);
-      if (remote.zak_colours) setColours(remote.zak_colours);
+      if (remote.zak_colours) {
+        var merged = [].concat(_toConsumableArray(remote.zak_colours), _toConsumableArray(BASE_COLOURS.filter(function (c) {
+          return !remote.zak_colours.includes(c);
+        })));
+        setColours(merged);
+      }
       if (remote.zak_purchases) setPurchases(remote.zak_purchases);
       if (remote.zak_customers) setCustomers(remote.zak_customers);
       if (remote.zak_mappings) setMappings(remote.zak_mappings);
