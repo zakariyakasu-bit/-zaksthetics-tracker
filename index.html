@@ -7569,7 +7569,7 @@ function TabPurchases(_ref26) {
           case 7:
             userContent = _t;
             _context.n = 8;
-            return fetch("https://api.anthropic.com/v1/messages", {
+            return fetch("/.netlify/functions/claude", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
