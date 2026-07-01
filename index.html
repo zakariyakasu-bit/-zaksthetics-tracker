@@ -2295,16 +2295,8 @@ function TabDashboard(_ref4) {
     offers = _ref4.offers,
     chinese = _ref4.chinese,
     driStock = _ref4.driStock,
-    purchases = _ref4.purchases;
-  var accepted = offers.filter(function (o) {
-    return o.status === "accepted";
-  });
-  var pending = offers.filter(function (o) {
-    return o.status === "pending" || o.status === "countered";
-  });
-  var totalRev = sales.reduce(function (s, x) {
-    return s + x.salePrice;
-  }, 0);
+    purchases = _ref4.purchases,
+    bhamSales = _ref4.bhamSales;
   var allPurchases = [].concat(_toConsumableArray(INIT_PURCHASES.filter(function (ip) {
     return !(purchases || []).some(function (p) {
       return p.id === ip.id;
@@ -2320,64 +2312,481 @@ function TabDashboard(_ref4) {
       items: im.items
     }) : p;
   })));
-  var totalProfit = sales.reduce(function (s, x) {
-    var p = allPurchases.find(function (q) {
-      return q.id === x.purchaseId;
+
+  // ── Shared helpers ──────────────────────────────────────────────
+  var MONTHS = _toConsumableArray(new Set(sales.map(function (s) {
+    var _s$saleDate;
+    return (_s$saleDate = s.saleDate) === null || _s$saleDate === void 0 ? void 0 : _s$saleDate.slice(0, 7);
+  }).filter(Boolean))).sort().reverse();
+  var today = new Date().toISOString().slice(0, 10);
+  var thisMonth = today.slice(0, 7);
+  var lastMonth = new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 7);
+  function getPresets() {
+    return [{
+      label: "This Month",
+      from: thisMonth + "-01",
+      to: today
+    }, {
+      label: "Last Month",
+      from: lastMonth + "-01",
+      to: lastMonth + "-31"
+    }, {
+      label: "Last 3 Months",
+      from: new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString().slice(0, 10),
+      to: today
+    }, {
+      label: "All Time",
+      from: "",
+      to: ""
+    }];
+  }
+  function mkFilterState() {
+    return {
+      preset: "All Time",
+      from: "",
+      to: "",
+      platform: "all",
+      colour: "all",
+      size: "all",
+      item: "all"
+    };
+  }
+  function applyFilter(arr, f) {
+    return arr.filter(function (s) {
+      if (f.from && s.saleDate && s.saleDate < f.from) return false;
+      if (f.to && s.saleDate && s.saleDate > f.to) return false;
+      if (f.platform !== "all" && s.platform !== f.platform) return false;
+      if (f.colour !== "all" && s.colour !== f.colour) return false;
+      if (f.size !== "all" && s.size !== f.size) return false;
+      if (f.item !== "all" && (s.itemName || "Nike Park Senior Set") !== f.item) return false;
+      return true;
+    });
+  }
+  function FilterBar(_ref5) {
+    var f = _ref5.f,
+      setF = _ref5.setF,
+      label = _ref5.label;
+    var platforms = ["all"].concat(_toConsumableArray(new Set(sales.map(function (s) {
+      return s.platform;
+    }).filter(Boolean))));
+    var colours = ["all"].concat(_toConsumableArray(new Set(sales.map(function (s) {
+      return s.colour;
+    }).filter(Boolean)).sort()));
+    var sizes = ["all"].concat(SIZES);
+    var items = ["all", "Nike Park Senior Set", "Park VII Jersey", "Park III Shorts", "Challenger Shorts", "Miler Top"];
+    function applyPreset(p) {
+      var pr = getPresets().find(function (x) {
+        return x.label === p;
+      });
+      setF(function (prev) {
+        return _objectSpread(_objectSpread({}, prev), {}, {
+          preset: p,
+          from: (pr === null || pr === void 0 ? void 0 : pr.from) || "",
+          to: (pr === null || pr === void 0 ? void 0 : pr.to) || ""
+        });
+      });
+    }
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: C.grey1,
+        border: "1px solid ".concat(C.grey2),
+        borderRadius: 4,
+        padding: 12,
+        marginBottom: 12
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 700,
+        fontSize: 11,
+        color: C.grey5,
+        textTransform: "uppercase",
+        letterSpacing: "0.06em",
+        marginBottom: 8
+      }
+    }, label, " Filters"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 5,
+        flexWrap: "wrap",
+        marginBottom: 8
+      }
+    }, getPresets().map(function (p) {
+      return /*#__PURE__*/React.createElement("button", {
+        key: p.label,
+        onClick: function onClick() {
+          return applyPreset(p.label);
+        },
+        style: {
+          background: f.preset === p.label ? "rgba(255,255,255,0.12)" : "transparent",
+          border: "1px solid ".concat(f.preset === p.label ? C.offwhite : C.grey3),
+          color: f.preset === p.label ? C.offwhite : C.grey5,
+          borderRadius: 2,
+          padding: "3px 8px",
+          fontSize: 9,
+          fontWeight: 700,
+          cursor: "pointer",
+          textTransform: "uppercase"
+        }
+      }, p.label);
+    })), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr",
+        gap: 6
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: C.grey5,
+        fontSize: 9,
+        marginBottom: 2,
+        textTransform: "uppercase"
+      }
+    }, "From"), /*#__PURE__*/React.createElement("input", {
+      type: "date",
+      style: {
+        background: C.grey2,
+        border: "1px solid ".concat(C.grey3),
+        color: C.offwhite,
+        borderRadius: 2,
+        padding: "4px 6px",
+        fontSize: 11,
+        width: "100%",
+        outline: "none",
+        boxSizing: "border-box"
+      },
+      value: f.from,
+      onChange: function onChange(e) {
+        return setF(function (p) {
+          return _objectSpread(_objectSpread({}, p), {}, {
+            from: e.target.value,
+            preset: "Custom"
+          });
+        });
+      }
+    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: C.grey5,
+        fontSize: 9,
+        marginBottom: 2,
+        textTransform: "uppercase"
+      }
+    }, "To"), /*#__PURE__*/React.createElement("input", {
+      type: "date",
+      style: {
+        background: C.grey2,
+        border: "1px solid ".concat(C.grey3),
+        color: C.offwhite,
+        borderRadius: 2,
+        padding: "4px 6px",
+        fontSize: 11,
+        width: "100%",
+        outline: "none",
+        boxSizing: "border-box"
+      },
+      value: f.to,
+      onChange: function onChange(e) {
+        return setF(function (p) {
+          return _objectSpread(_objectSpread({}, p), {}, {
+            to: e.target.value,
+            preset: "Custom"
+          });
+        });
+      }
+    })), [["Platform", platforms, "platform"], ["Colour", colours, "colour"], ["Size", sizes, "size"], ["Item", items, "item"]].map(function (_ref6) {
+      var _ref7 = _slicedToArray(_ref6, 3),
+        lbl = _ref7[0],
+        opts = _ref7[1],
+        key = _ref7[2];
+      return /*#__PURE__*/React.createElement("div", {
+        key: key
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          color: C.grey5,
+          fontSize: 9,
+          marginBottom: 2,
+          textTransform: "uppercase"
+        }
+      }, lbl), /*#__PURE__*/React.createElement("select", {
+        style: {
+          background: C.grey2,
+          border: "1px solid ".concat(C.grey3),
+          color: C.offwhite,
+          borderRadius: 2,
+          padding: "4px 6px",
+          fontSize: 11,
+          width: "100%",
+          outline: "none"
+        },
+        value: f[key],
+        onChange: function onChange(e) {
+          return setF(function (p) {
+            return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, key, e.target.value));
+          });
+        }
+      }, opts.map(function (o) {
+        return /*#__PURE__*/React.createElement("option", {
+          key: o,
+          value: o
+        }, o === "all" ? "All " + lbl + "s" : o);
+      })));
+    })));
+  }
+
+  // ── Section states ──────────────────────────────────────────────
+  var _useState = useState(mkFilterState()),
+    _useState2 = _slicedToArray(_useState, 2),
+    plFilter = _useState2[0],
+    setPlFilter = _useState2[1];
+  var _useState3 = useState(mkFilterState()),
+    _useState4 = _slicedToArray(_useState3, 2),
+    slFilter = _useState4[0],
+    setSlFilter = _useState4[1];
+  var _useState5 = useState(mkFilterState()),
+    _useState6 = _slicedToArray(_useState5, 2),
+    prFilter = _useState6[0],
+    setPrFilter = _useState6[1];
+
+  // ── P&L ─────────────────────────────────────────────────────────
+  var bundleCostMapDB = {};
+  sales.forEach(function (s) {
+    if (s.bundleId) {
+      var c = s.costOverride || getItemFromColour(s.colour, s.itemName).cost || SET_COST;
+      bundleCostMapDB[s.bundleId] = (bundleCostMapDB[s.bundleId] || 0) + c;
+    }
+  });
+  var enrichSale = function enrichSale(s) {
+    var p = allPurchases.find(function (x) {
+      return x.id === s.purchaseId;
     });
     var d = p ? p.delivery / p.items.length : 0;
-    return s + (x.salePrice - SET_COST - d);
+    var itemCost = s.costOverride || getItemFromColour(s.colour, s.itemName).cost || SET_COST;
+    var cost = s.bundleId ? s.salePrice > 0 ? bundleCostMapDB[s.bundleId] || itemCost : 0 : itemCost;
+    return _objectSpread(_objectSpread({}, s), {}, {
+      cost: cost,
+      profit: s.salePrice - cost - d,
+      delShare: d
+    });
+  };
+  var allDrifit = sales.filter(function (s) {
+    return s.itemType === "drifit" || !s.itemType;
+  }).map(enrichSale);
+  var plSales = applyFilter(allDrifit.filter(function (s) {
+    return s.status === "completed";
+  }), plFilter);
+  var plRev = plSales.reduce(function (t, s) {
+    return t + s.salePrice;
   }, 0);
-  var totalSpent = allPurchases.reduce(function (t, p) {
-    return t + p.items.reduce(function (s, i) {
-      return s + i.cost;
-    }, 0) + p.delivery;
+  var plCost = plSales.reduce(function (t, s) {
+    return t + s.cost;
   }, 0);
-  var chinaTied = chinese.filter(function (x) {
-    return x.location !== "sold";
-  }).reduce(function (s, x) {
-    return s + x.costGBP;
+  var plProfit = plRev - plCost;
+  var plMargin = plRev > 0 ? plProfit / plRev * 100 : 0;
+
+  // ── Sales ────────────────────────────────────────────────────────
+  var slSales = applyFilter(allDrifit, slFilter);
+  var slByStatus = {
+    completed: slSales.filter(function (s) {
+      return s.status === "completed";
+    }),
+    pending: slSales.filter(function (s) {
+      return s.status === "pending_delivery";
+    }),
+    shipped: slSales.filter(function (s) {
+      return s.status === "shipped";
+    }),
+    awaiting: slSales.filter(function (s) {
+      return s.status === "awaiting_stock";
+    })
+  };
+  var slRev = slByStatus.completed.reduce(function (t, s) {
+    return t + s.salePrice;
   }, 0);
-  var salesMap = {};
-  sales.forEach(function (s) {
-    var k = s.colour + "-" + s.size;
-    salesMap[k] = (salesMap[k] || 0) + 1;
+  var slAvg = slByStatus.completed.length > 0 ? slRev / slByStatus.completed.length : 0;
+
+  // ── Purchases ────────────────────────────────────────────────────
+  var allPurchaseItems = allPurchases.flatMap(function (p) {
+    return p.items.map(function (i) {
+      return _objectSpread(_objectSpread({}, i), {}, {
+        date: p.date,
+        address: p.address
+      });
+    });
   });
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  var prItems = allPurchaseItems.filter(function (i) {
+    if (prFilter.from && i.date && i.date < prFilter.from) return false;
+    if (prFilter.to && i.date && i.date > prFilter.to) return false;
+    if (prFilter.colour !== "all" && i.colour !== prFilter.colour) return false;
+    if (prFilter.size !== "all" && i.size !== prFilter.size) return false;
+    if (prFilter.item !== "all" && (i.itemName || "Nike Park Senior Set") !== prFilter.item) return false;
+    return true;
+  });
+  var prTotal = prItems.reduce(function (t, i) {
+    return t + i.cost * (i.qty || 1);
+  }, 0);
+  var prUnits = prItems.reduce(function (t, i) {
+    return t + (i.qty || 1);
+  }, 0);
+
+  // ── Performance by colour/size ──────────────────────────────────
+  var stockedKeys = new Set();
+  driStock.filter(function (s) {
+    return !s.problem;
+  }).forEach(function (s) {
+    return stockedKeys.add(s.colour + "|" + s.size + "|" + (s.itemName || ""));
+  });
+  var soldCount = {};
+  allDrifit.filter(function (s) {
+    return ["completed", "shipped", "pending_delivery"].includes(s.status);
+  }).forEach(function (s) {
+    var k = s.colour + "|" + s.size + "|" + (s.itemName || "");
+    soldCount[k] = (soldCount[k] || 0) + 1;
+  });
+  var boughtCount = {};
+  driStock.filter(function (s) {
+    return !s.problem;
+  }).forEach(function (s) {
+    var k = s.colour + "|" + s.size + "|" + (s.itemName || "");
+    boughtCount[k] = (boughtCount[k] || 0) + 1;
+  });
+  var perfRows = _toConsumableArray(stockedKeys).map(function (k) {
+    var _k$split = k.split("|"),
+      _k$split2 = _slicedToArray(_k$split, 3),
+      col = _k$split2[0],
+      sz = _k$split2[1],
+      item = _k$split2[2];
+    return {
+      col: col,
+      sz: sz,
+      item: item,
+      sold: soldCount[k] || 0,
+      bought: boughtCount[k] || 0
+    };
+  }).sort(function (a, b) {
+    return b.sold - a.sold || b.bought - a.bought;
+  });
+
+  // ── Colours to try ──────────────────────────────────────────────
+  var everStockedColours = new Set(driStock.map(function (s) {
+    return s.colour;
+  }));
+  var toTry = [].concat(_toConsumableArray(_toConsumableArray(SET_COLOURS).filter(function (c) {
+    return !everStockedColours.has(c);
+  }).map(function (c) {
+    return {
+      colour: c,
+      item: "Nike Park Senior Set",
+      cost: SET_COST
+    };
+  })), _toConsumableArray(_toConsumableArray(TOP_COLOURS).filter(function (c) {
+    return !everStockedColours.has(c);
+  }).map(function (c) {
+    return {
+      colour: c,
+      item: "Park VII Jersey",
+      cost: TOP_COST
+    };
+  })), _toConsumableArray(_toConsumableArray(SHORTS_COLOURS).filter(function (c) {
+    return !everStockedColours.has(c) && !SET_COLOURS.has(c);
+  }).map(function (c) {
+    return {
+      colour: c,
+      item: "Park III Shorts",
+      cost: SHORTS_COST
+    };
+  }))).sort(function (a, b) {
+    return a.colour.localeCompare(b.colour);
+  });
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SHdr, null, "Profit & Loss"), /*#__PURE__*/React.createElement(FilterBar, {
+    f: plFilter,
+    setF: setPlFilter,
+    label: "P&L"
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
-      display: "flex",
+      display: "grid",
+      gridTemplateColumns: "repeat(4,1fr)",
       gap: 10,
-      flexWrap: "wrap",
       marginBottom: 14
     }
-  }, /*#__PURE__*/React.createElement(Stat, {
-    label: "Dri-Fit Deployed",
-    value: "£" + totalSpent.toFixed(2),
-    sub: allPurchases.length + " purchases · " + allPurchases.reduce(function (t, p) {
-      return t + p.items.filter(function (i) {
-        return i.type === "set";
-      }).length;
-    }, 0) + " sets",
-    col: C.red
-  }), /*#__PURE__*/React.createElement(Stat, {
-    label: "External Deployed",
-    value: "£" + chinaTied.toFixed(2),
-    sub: chinese.filter(function (x) {
-      return x.location !== "sold";
-    }).length + " items unsold",
-    col: C.amber
-  }), /*#__PURE__*/React.createElement(Stat, {
-    label: "Dri-Fit Revenue",
-    value: "£" + totalRev.toFixed(2),
-    sub: sales.length + " sets sold"
-  }), /*#__PURE__*/React.createElement(Stat, {
-    label: "Dri-Fit Profit",
-    value: "£" + totalProfit.toFixed(2),
-    col: totalProfit >= 0 ? C.green : C.red
+  }, [["Revenue", "£" + plRev.toFixed(2), C.blue], ["Cost", "£" + plCost.toFixed(2), C.amber], ["Profit", "£" + plProfit.toFixed(2), plProfit >= 0 ? C.green : C.red], ["Margin", plMargin.toFixed(1) + "%", plProfit >= 0 ? C.green : C.red]].map(function (_ref8) {
+    var _ref9 = _slicedToArray(_ref8, 3),
+      lbl = _ref9[0],
+      val = _ref9[1],
+      col = _ref9[2];
+    return /*#__PURE__*/React.createElement("div", {
+      key: lbl,
+      style: {
+        background: C.grey1,
+        border: "1px solid ".concat(C.grey2),
+        borderRadius: 4,
+        padding: "12px 14px"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: C.grey5,
+        fontSize: 10,
+        textTransform: "uppercase",
+        letterSpacing: "0.06em",
+        marginBottom: 4
+      }
+    }, lbl), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 800,
+        fontSize: 20,
+        color: col,
+        fontFamily: "monospace"
+      }
+    }, val), lbl === "Revenue" && /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: C.grey5,
+        fontSize: 11,
+        marginTop: 2
+      }
+    }, plSales.length, " completed sales"));
+  })), /*#__PURE__*/React.createElement(SHdr, null, "Sales"), /*#__PURE__*/React.createElement(FilterBar, {
+    f: slFilter,
+    setF: setSlFilter,
+    label: "Sales"
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(4,1fr)",
+      gap: 10,
+      marginBottom: 8
+    }
+  }, [["Completed", slByStatus.completed.length, C.green], ["Pending", slByStatus.pending.length, C.amber], ["Shipped", slByStatus.shipped.length, C.purple], ["Awaiting Stock", slByStatus.awaiting.length, C.blue]].map(function (_ref0) {
+    var _ref1 = _slicedToArray(_ref0, 3),
+      lbl = _ref1[0],
+      val = _ref1[1],
+      col = _ref1[2];
+    return /*#__PURE__*/React.createElement("div", {
+      key: lbl,
+      style: {
+        background: C.grey1,
+        border: "1px solid ".concat(C.grey2),
+        borderRadius: 4,
+        padding: "12px 14px"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: C.grey5,
+        fontSize: 10,
+        textTransform: "uppercase",
+        letterSpacing: "0.06em",
+        marginBottom: 4
+      }
+    }, lbl), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 800,
+        fontSize: 20,
+        color: col,
+        fontFamily: "monospace"
+      }
+    }, val));
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "1fr 1fr",
-      gap: 14,
+      gap: 10,
       marginBottom: 14
     }
   }, /*#__PURE__*/React.createElement("div", {
@@ -2385,184 +2794,261 @@ function TabDashboard(_ref4) {
       background: C.grey1,
       border: "1px solid ".concat(C.grey2),
       borderRadius: 4,
-      padding: 14
+      padding: "12px 14px"
     }
-  }, /*#__PURE__*/React.createElement(SHdr, null, "Best Sellers"), Object.entries(salesMap).sort(function (a, b) {
-    return b[1] - a[1];
-  }).slice(0, 6).map(function (_ref5) {
-    var _ref6 = _slicedToArray(_ref5, 2),
-      k = _ref6[0],
-      v = _ref6[1];
-    var _k$split = k.split("-"),
-      _k$split2 = _slicedToArray(_k$split, 2),
-      col = _k$split2[0],
-      sz = _k$split2[1];
-    return /*#__PURE__*/React.createElement("div", {
-      key: k,
-      style: {
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 8
-      }
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontWeight: 700
-      }
-    }, col), /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.grey5,
-        fontSize: 11,
-        marginLeft: 6
-      }
-    }, "\xB7", sz)), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 8
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        width: v * 28,
-        height: 5,
-        background: C.red,
-        borderRadius: 3
-      }
-    }), /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.grey5,
-        fontSize: 11,
-        fontFamily: "monospace"
-      }
-    }, v)));
-  })), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.grey5,
+      fontSize: 10,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 4
+    }
+  }, "Revenue (completed)"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 800,
+      fontSize: 20,
+      fontFamily: "monospace"
+    }
+  }, "\xA3", slRev.toFixed(2))), /*#__PURE__*/React.createElement("div", {
     style: {
       background: C.grey1,
       border: "1px solid ".concat(C.grey2),
       borderRadius: 4,
-      padding: 14
-    }
-  }, /*#__PURE__*/React.createElement(SHdr, null, "Stock Overview"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      color: C.grey5,
-      fontSize: 10,
-      textTransform: "uppercase",
-      letterSpacing: "0.06em",
-      marginBottom: 6
-    }
-  }, "Dri-Fit"), driStock.map(function (s, i) {
-    return /*#__PURE__*/React.createElement("div", {
-      key: i,
-      style: {
-        display: "flex",
-        justifyContent: "space-between",
-        padding: "4px 0",
-        borderBottom: "1px solid ".concat(C.grey2)
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 12
-      }
-    }, s.colour, " \xB7 ", s.size), /*#__PURE__*/React.createElement(Tag, {
-      bg: s.problem ? "rgba(232,38,10,0.15)" : "rgba(59,130,246,0.15)",
-      fg: s.problem ? C.red : C.blue,
-      sm: true
-    }, s.problem ? "Problem" : "With You"));
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      color: C.grey5,
-      fontSize: 10,
-      textTransform: "uppercase",
-      letterSpacing: "0.06em",
-      marginBottom: 6,
-      marginTop: 10
-    }
-  }, "Chinese Stock"), chinese.filter(function (x) {
-    return x.location !== "sold";
-  }).map(function (x) {
-    return /*#__PURE__*/React.createElement("div", {
-      key: x.id,
-      style: {
-        display: "flex",
-        justifyContent: "space-between",
-        padding: "4px 0",
-        borderBottom: "1px solid ".concat(C.grey2)
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 12
-      }
-    }, x.item, " ", x.size), /*#__PURE__*/React.createElement(Tag, {
-      bg: "rgba(".concat(x.location === "birmingham" ? "168,85,247" : "59,130,246", ",0.15)"),
-      fg: x.location === "birmingham" ? C.purple : C.blue,
-      sm: true
-    }, locLbl(x.location)));
-  }))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: "rgba(232,38,10,0.07)",
-      border: "1px solid rgba(232,38,10,0.25)",
-      borderRadius: 4,
-      padding: 12
+      padding: "12px 14px"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontWeight: 700,
-      color: C.red,
-      marginBottom: 5,
-      fontSize: 12
+      color: C.grey5,
+      fontSize: 10,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 4
     }
-  }, "\u26A0\uFE0F Loss Alert \u2014 White L Express (Purchase 2)"), /*#__PURE__*/React.createElement("div", {
+  }, "Avg Sale Price"), /*#__PURE__*/React.createElement("div", {
     style: {
-      display: "flex",
-      gap: 18,
-      flexWrap: "wrap"
+      fontWeight: 800,
+      fontSize: 20,
+      fontFamily: "monospace"
     }
-  }, [["Sale", "£30.00"], ["Cost", "£22.95"], ["Express", "£8.95"], ["Loss", "-£1.90"]].map(function (_ref7) {
-    var _ref8 = _slicedToArray(_ref7, 2),
-      l = _ref8[0],
-      v = _ref8[1];
+  }, "\xA3", slAvg.toFixed(2)))), /*#__PURE__*/React.createElement(SHdr, null, "Purchases"), /*#__PURE__*/React.createElement(FilterBar, {
+    f: prFilter,
+    setF: setPrFilter,
+    label: "Purchases"
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(3,1fr)",
+      gap: 10,
+      marginBottom: 14
+    }
+  }, [["Total Units", prUnits, C.blue], ["Total Spend", "£" + prTotal.toFixed(2), C.amber], ["Avg Cost per Unit", "£" + (prUnits > 0 ? prTotal / prUnits : 0).toFixed(2), C.grey5]].map(function (_ref10) {
+    var _ref11 = _slicedToArray(_ref10, 3),
+      lbl = _ref11[0],
+      val = _ref11[1],
+      col = _ref11[2];
     return /*#__PURE__*/React.createElement("div", {
-      key: l
-    }, /*#__PURE__*/React.createElement("span", {
+      key: lbl,
       style: {
-        color: C.grey5
+        background: C.grey1,
+        border: "1px solid ".concat(C.grey2),
+        borderRadius: 4,
+        padding: "12px 14px"
       }
-    }, l, ": "), /*#__PURE__*/React.createElement("strong", {
+    }, /*#__PURE__*/React.createElement("div", {
       style: {
-        color: l === "Loss" ? C.red : C.offwhite
+        color: C.grey5,
+        fontSize: 10,
+        textTransform: "uppercase",
+        letterSpacing: "0.06em",
+        marginBottom: 4
       }
-    }, v));
-  })), /*#__PURE__*/React.createElement("div", {
+    }, lbl), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 800,
+        fontSize: 20,
+        color: col,
+        fontFamily: "monospace"
+      }
+    }, val));
+  })), /*#__PURE__*/React.createElement(SHdr, null, "Performance by Colour / Size"), /*#__PURE__*/React.createElement("div", {
     style: {
-      color: C.grey4,
-      fontSize: 11,
-      marginTop: 5
+      background: C.grey1,
+      border: "1px solid ".concat(C.grey2),
+      borderRadius: 4,
+      overflow: "hidden",
+      marginBottom: 14
     }
-  }, "eBay minimum \xA3", FLOOR_EBAY, " when out of stock to cover express delivery")));
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: "100%",
+      borderCollapse: "collapse"
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      borderBottom: "1px solid ".concat(C.grey2)
+    }
+  }, ["Item", "Size", "Bought", "Sold", "Remaining", "Sell-through"].map(function (h) {
+    return /*#__PURE__*/React.createElement("th", {
+      key: h,
+      style: {
+        padding: "8px 9px",
+        textAlign: "left",
+        color: C.grey4,
+        fontSize: 9,
+        fontWeight: 700,
+        textTransform: "uppercase",
+        letterSpacing: "0.07em"
+      }
+    }, h);
+  }))), /*#__PURE__*/React.createElement("tbody", null, perfRows.map(function (r, i) {
+    var rate = r.bought > 0 ? Math.round(r.sold / r.bought * 100) : 0;
+    var remaining = r.bought - r.sold;
+    return /*#__PURE__*/React.createElement("tr", {
+      key: i,
+      style: {
+        borderBottom: "1px solid ".concat(C.grey2),
+        background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)"
+      }
+    }, /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "7px 9px",
+        fontWeight: 700,
+        fontSize: 11
+      }
+    }, r.col, r.item && r.item !== "Nike Park Senior Set" ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.grey5,
+        fontSize: 10,
+        marginLeft: 4
+      }
+    }, r.item === "Park VII Jersey" ? "Jersey" : r.item === "Park III Shorts" ? "Shorts" : r.item) : null), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "7px 9px",
+        fontFamily: "monospace"
+      }
+    }, r.sz), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "7px 9px",
+        fontFamily: "monospace"
+      }
+    }, r.bought), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "7px 9px",
+        fontFamily: "monospace",
+        color: r.sold > 0 ? C.green : C.grey5
+      }
+    }, r.sold || "—"), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "7px 9px",
+        fontFamily: "monospace",
+        color: remaining > 0 ? C.amber : C.grey5
+      }
+    }, remaining || "—"), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "7px 9px"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 6
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 60,
+        height: 5,
+        background: C.grey3,
+        borderRadius: 3,
+        overflow: "hidden"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: rate + "%",
+        height: "100%",
+        background: rate >= 75 ? C.green : rate >= 40 ? C.amber : C.red,
+        borderRadius: 3
+      }
+    })), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: "monospace",
+        fontSize: 11,
+        color: rate >= 75 ? C.green : rate >= 40 ? C.amber : C.red
+      }
+    }, rate, "%"))));
+  })))), toTry.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SHdr, null, "Colours to Try"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.grey1,
+      border: "1px solid ".concat(C.grey2),
+      borderRadius: 4,
+      padding: 14,
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.grey5,
+      fontSize: 11,
+      marginBottom: 10
+    }
+  }, "These colours are available from Newitts but you haven't stocked them yet. Consider adding to your next order."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))",
+      gap: 6
+    }
+  }, toTry.map(function (t, i) {
+    return /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        background: C.grey2,
+        borderRadius: 3,
+        padding: "8px 10px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center"
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 700,
+        fontSize: 12
+      }
+    }, t.colour), /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: C.grey5,
+        fontSize: 10
+      }
+    }, t.item === "Nike Park Senior Set" ? "Set" : t.item === "Park VII Jersey" ? "Jersey" : "Shorts", " \xB7 \xA3", t.cost.toFixed(2))), /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.green,
+        fontFamily: "monospace",
+        fontSize: 11
+      }
+    }, "\xA3", t.cost.toFixed(2)));
+  })))));
 }
 
 // ── TAB: Offers ────────────────────────────────────────────────
-function TabOffers(_ref9) {
-  var offers = _ref9.offers,
-    setOffers = _ref9.setOffers,
-    acceptedOffers = _ref9.acceptedOffers,
-    actualCost = _ref9.actualCost,
-    colours = _ref9.colours,
-    sales = _ref9.sales,
-    setSales = _ref9.setSales;
-  var _useState = useState(false),
-    _useState2 = _slicedToArray(_useState, 2),
-    showAdd = _useState2[0],
-    setShowAdd = _useState2[1];
-  var _useState3 = useState({}),
-    _useState4 = _slicedToArray(_useState3, 2),
-    counters = _useState4[0],
-    setCounters = _useState4[1];
-  var _useState5 = useState(true),
-    _useState6 = _slicedToArray(_useState5, 2),
-    hideDeclined = _useState6[0],
-    setHideDeclined = _useState6[1];
-  var _useState7 = useState({
+function TabOffers(_ref12) {
+  var offers = _ref12.offers,
+    setOffers = _ref12.setOffers,
+    acceptedOffers = _ref12.acceptedOffers,
+    actualCost = _ref12.actualCost,
+    colours = _ref12.colours,
+    sales = _ref12.sales,
+    setSales = _ref12.setSales;
+  var _useState7 = useState(false),
+    _useState8 = _slicedToArray(_useState7, 2),
+    showAdd = _useState8[0],
+    setShowAdd = _useState8[1];
+  var _useState9 = useState({}),
+    _useState0 = _slicedToArray(_useState9, 2),
+    counters = _useState0[0],
+    setCounters = _useState0[1];
+  var _useState1 = useState(true),
+    _useState10 = _slicedToArray(_useState1, 2),
+    hideDeclined = _useState10[0],
+    setHideDeclined = _useState10[1];
+  var _useState11 = useState({
       username: "",
       itemName: "Nike Park Senior Set",
       colour: "White",
@@ -2573,9 +3059,9 @@ function TabOffers(_ref9) {
       platform: "Vinted",
       note: ""
     }),
-    _useState8 = _slicedToArray(_useState7, 2),
-    form = _useState8[0],
-    setForm = _useState8[1];
+    _useState12 = _slicedToArray(_useState11, 2),
+    form = _useState12[0],
+    setForm = _useState12[1];
   var pending = offers.filter(function (o) {
     return o.status === "pending" || o.status === "countered";
   });
@@ -2811,10 +3297,10 @@ function TabOffers(_ref9) {
       marginBottom: 10,
       flexWrap: "wrap"
     }
-  }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref0) {
-    var _ref1 = _slicedToArray(_ref0, 2),
-      k = _ref1[0],
-      lbl = _ref1[1];
+  }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref13) {
+    var _ref14 = _slicedToArray(_ref13, 2),
+      k = _ref14[0],
+      lbl = _ref14[1];
     var active = form.itemName === k;
     return /*#__PURE__*/React.createElement("button", {
       key: k,
@@ -2849,12 +3335,12 @@ function TabOffers(_ref9) {
       gap: 10,
       marginBottom: 10
     }
-  }, [["Username", "username", "text", "@username"], ["Offer £", "offerPrice", "number", "27.50"]].map(function (_ref10) {
-    var _ref11 = _slicedToArray(_ref10, 4),
-      lbl = _ref11[0],
-      k = _ref11[1],
-      t = _ref11[2],
-      ph = _ref11[3];
+  }, [["Username", "username", "text", "@username"], ["Offer £", "offerPrice", "number", "27.50"]].map(function (_ref15) {
+    var _ref16 = _slicedToArray(_ref15, 4),
+      lbl = _ref16[0],
+      k = _ref16[1],
+      t = _ref16[2],
+      ph = _ref16[3];
     return /*#__PURE__*/React.createElement("div", {
       key: k
     }, /*#__PURE__*/React.createElement("div", {
@@ -3260,15 +3746,15 @@ function TabOffers(_ref9) {
 
 // ── TAB: Sales ─────────────────────────────────────────────────
 // ── P&L Section (embedded in Sales tab) ──────────────────────
-function PLSection(_ref12) {
-  var sales = _ref12.sales,
-    bhamSales = _ref12.bhamSales,
-    purchases = _ref12.purchases,
-    driStock = _ref12.driStock;
-  var _useState9 = useState("summary"),
-    _useState0 = _slicedToArray(_useState9, 2),
-    plTab = _useState0[0],
-    setPlTab = _useState0[1];
+function PLSection(_ref17) {
+  var sales = _ref17.sales,
+    bhamSales = _ref17.bhamSales,
+    purchases = _ref17.purchases,
+    driStock = _ref17.driStock;
+  var _useState13 = useState("summary"),
+    _useState14 = _slicedToArray(_useState13, 2),
+    plTab = _useState14[0],
+    setPlTab = _useState14[1];
   var allPurchases = [].concat(_toConsumableArray(INIT_PURCHASES.filter(function (ip) {
     return !(purchases || []).some(function (p) {
       return p.id === ip.id;
@@ -3293,12 +3779,20 @@ function PLSection(_ref12) {
     return !s.problem && s.status !== "sold";
   });
   var currentOutgoings = unsoldStock.length * SET_COST;
+  var bundleCostMapD = {};
+  sales.forEach(function (s) {
+    if (s.bundleId) {
+      var c = s.costOverride || getItemFromColour(s.colour, s.itemName).cost || SET_COST;
+      bundleCostMapD[s.bundleId] = (bundleCostMapD[s.bundleId] || 0) + c;
+    }
+  });
   var allSalesEnriched = [].concat(_toConsumableArray(sales.map(function (s) {
     var p = allPurchases.find(function (x) {
       return x.id === s.purchaseId;
     });
     var d = p ? p.delivery / p.items.length : 0;
-    var cost = s.costOverride || SET_COST;
+    var itemCostD = s.costOverride || getItemFromColour(s.colour, s.itemName).cost || SET_COST;
+    var cost = s.bundleId ? s.salePrice > 0 ? bundleCostMapD[s.bundleId] || itemCostD : 0 : itemCostD;
     return _objectSpread(_objectSpread({}, s), {}, {
       delShare: d,
       cost: cost,
@@ -3424,10 +3918,10 @@ function PLSection(_ref12) {
       gap: 0,
       borderBottom: "1px solid ".concat(C.grey2)
     }
-  }, [["summary", "Summary"], ["purchases", "Purchases"]].map(function (_ref13) {
-    var _ref14 = _slicedToArray(_ref13, 2),
-      k = _ref14[0],
-      lbl = _ref14[1];
+  }, [["summary", "Summary"], ["purchases", "Purchases"]].map(function (_ref18) {
+    var _ref19 = _slicedToArray(_ref18, 2),
+      k = _ref19[0],
+      lbl = _ref19[1];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       onClick: function onClick() {
@@ -3866,49 +4360,49 @@ function PLSection(_ref12) {
     }, "\xA3", p.amountPaid.toFixed(2), " spent")));
   })));
 }
-function TabSales(_ref15) {
-  var sales = _ref15.sales,
-    setSales = _ref15.setSales,
-    colours = _ref15.colours,
-    setColours = _ref15.setColours,
-    purchases = _ref15.purchases,
-    bhamSales = _ref15.bhamSales,
-    setBhamSales = _ref15.setBhamSales,
-    driStock = _ref15.driStock,
-    setDriStock = _ref15.setDriStock,
-    chinese = _ref15.chinese,
-    setChinese = _ref15.setChinese,
-    salesPrefill = _ref15.salesPrefill,
-    setSalesPrefill = _ref15.setSalesPrefill;
-  var _useState1 = useState(false),
-    _useState10 = _slicedToArray(_useState1, 2),
-    show = _useState10[0],
-    setShow = _useState10[1];
-  var _useState11 = useState("all"),
-    _useState12 = _slicedToArray(_useState11, 2),
-    filter = _useState12[0],
-    setFilter = _useState12[1];
-  var _useState13 = useState(true),
-    _useState14 = _slicedToArray(_useState13, 2),
-    sortDesc = _useState14[0],
-    setSortDesc = _useState14[1];
-  var _useState15 = useState("all"),
+function TabSales(_ref20) {
+  var sales = _ref20.sales,
+    setSales = _ref20.setSales,
+    colours = _ref20.colours,
+    setColours = _ref20.setColours,
+    purchases = _ref20.purchases,
+    bhamSales = _ref20.bhamSales,
+    setBhamSales = _ref20.setBhamSales,
+    driStock = _ref20.driStock,
+    setDriStock = _ref20.setDriStock,
+    chinese = _ref20.chinese,
+    setChinese = _ref20.setChinese,
+    salesPrefill = _ref20.salesPrefill,
+    setSalesPrefill = _ref20.setSalesPrefill;
+  var _useState15 = useState(false),
     _useState16 = _slicedToArray(_useState15, 2),
-    filterPlatform = _useState16[0],
-    setFilterPlatform = _useState16[1];
+    show = _useState16[0],
+    setShow = _useState16[1];
   var _useState17 = useState("all"),
     _useState18 = _slicedToArray(_useState17, 2),
-    filterColour = _useState18[0],
-    setFilterColour = _useState18[1];
-  var _useState19 = useState("all"),
+    filter = _useState18[0],
+    setFilter = _useState18[1];
+  var _useState19 = useState(true),
     _useState20 = _slicedToArray(_useState19, 2),
-    filterSize = _useState20[0],
-    setFilterSize = _useState20[1];
+    sortDesc = _useState20[0],
+    setSortDesc = _useState20[1];
   var _useState21 = useState("all"),
     _useState22 = _slicedToArray(_useState21, 2),
-    filterItem = _useState22[0],
-    setFilterItem = _useState22[1];
-  var _useState23 = useState({
+    filterPlatform = _useState22[0],
+    setFilterPlatform = _useState22[1];
+  var _useState23 = useState("all"),
+    _useState24 = _slicedToArray(_useState23, 2),
+    filterColour = _useState24[0],
+    setFilterColour = _useState24[1];
+  var _useState25 = useState("all"),
+    _useState26 = _slicedToArray(_useState25, 2),
+    filterSize = _useState26[0],
+    setFilterSize = _useState26[1];
+  var _useState27 = useState("all"),
+    _useState28 = _slicedToArray(_useState27, 2),
+    filterItem = _useState28[0],
+    setFilterItem = _useState28[1];
+  var _useState29 = useState({
       itemType: "drifit",
       itemName: "",
       externalId: null,
@@ -3924,30 +4418,34 @@ function TabSales(_ref15) {
       status: "pending_delivery",
       location: "london"
     }),
-    _useState24 = _slicedToArray(_useState23, 2),
-    form = _useState24[0],
-    setForm = _useState24[1];
-  // Multi-line support: lines = [{itemName, colour, size}]
-  var _useState25 = useState([]),
-    _useState26 = _slicedToArray(_useState25, 2),
-    saleLines = _useState26[0],
-    setSaleLines = _useState26[1];
-  var _useState27 = useState(false),
-    _useState28 = _slicedToArray(_useState27, 2),
-    multiMode = _useState28[0],
-    setMultiMode = _useState28[1];
-  var _useState29 = useState(null),
     _useState30 = _slicedToArray(_useState29, 2),
-    confirmDelete = _useState30[0],
-    setConfirmDelete = _useState30[1];
-  var _useState31 = useState(null),
+    form = _useState30[0],
+    setForm = _useState30[1];
+  // Multi-line support: lines = [{itemName, colour, size}]
+  var _useState31 = useState([]),
     _useState32 = _slicedToArray(_useState31, 2),
-    editId = _useState32[0],
-    setEditId = _useState32[1];
-  var _useState33 = useState({}),
+    saleLines = _useState32[0],
+    setSaleLines = _useState32[1];
+  var _useState33 = useState(false),
     _useState34 = _slicedToArray(_useState33, 2),
-    editForm = _useState34[0],
-    setEditForm = _useState34[1];
+    multiMode = _useState34[0],
+    setMultiMode = _useState34[1];
+  var _useState35 = useState(null),
+    _useState36 = _slicedToArray(_useState35, 2),
+    confirmDelete = _useState36[0],
+    setConfirmDelete = _useState36[1];
+  var _useState37 = useState(null),
+    _useState38 = _slicedToArray(_useState37, 2),
+    editId = _useState38[0],
+    setEditId = _useState38[1];
+  var _useState39 = useState({}),
+    _useState40 = _slicedToArray(_useState39, 2),
+    editForm = _useState40[0],
+    setEditForm = _useState40[1];
+  var _useState41 = useState([]),
+    _useState42 = _slicedToArray(_useState41, 2),
+    editLines = _useState42[0],
+    setEditLines = _useState42[1];
 
   // ── Consume salesPrefill from Customers tab ──────────────────
   useEffect(function () {
@@ -3969,12 +4467,22 @@ function TabSales(_ref15) {
   // ── Merge all sales into one ledger ───────────────────────────
   var allSales = useMemo(function () {
     // Enrich INIT/user sales
+    // Pre-compute bundle costs: for each bundleId, sum all item costs
+    var bundleCostMap = {};
+    sales.forEach(function (s) {
+      if (s.bundleId) {
+        var c = s.costOverride || getItemFromColour(s.colour, s.itemName).cost || SET_COST;
+        bundleCostMap[s.bundleId] = (bundleCostMap[s.bundleId] || 0) + c;
+      }
+    });
     var mainSales = sales.map(function (s) {
       var p = [].concat(INIT_PURCHASES, _toConsumableArray(purchases)).find(function (x) {
         return x.id === s.purchaseId;
       });
       var d = p ? p.delivery / p.items.length : 0;
-      var cost = s.costOverride || SET_COST;
+      // Use item-specific cost; bundles put total cost on first line (salePrice>0), zero on extras
+      var itemCost = s.costOverride || getItemFromColour(s.colour, s.itemName).cost || SET_COST;
+      var cost = s.bundleId ? s.salePrice > 0 ? bundleCostMap[s.bundleId] : 0 : itemCost;
       var loc = s.platform === "Birms" ? "birmingham" : "london";
       return _objectSpread(_objectSpread({}, s), {}, {
         delShare: d,
@@ -4234,6 +4742,7 @@ function TabSales(_ref15) {
       shortsSize: s.shortsSize || s.size,
       diffSizes: hasDiffSizes
     });
+    setEditLines([]);
   }
   function saveEdit(id) {
     var extra = editForm.diffSizes && editForm.itemName === "Nike Park Senior Set" && editForm.topSize !== editForm.shortsSize ? {
@@ -4244,15 +4753,46 @@ function TabSales(_ref15) {
       topSize: undefined,
       shortsSize: undefined
     };
-    setSales(function (p) {
-      return p.map(function (s) {
-        return s.id === id ? _objectSpread(_objectSpread(_objectSpread(_objectSpread({}, s), editForm), extra), {}, {
-          salePrice: parseFloat(editForm.salePrice) || s.salePrice
-        }) : s;
+    if (editLines.length > 0) {
+      var now = Date.now();
+      var bundleId = now;
+      var origSale = sales.find(function (s) {
+        return s.id === id;
       });
-    });
+      var newLines = [_objectSpread(_objectSpread(_objectSpread(_objectSpread({}, origSale), editForm), extra), {}, {
+        id: now,
+        salePrice: parseFloat(editForm.salePrice) || (origSale === null || origSale === void 0 ? void 0 : origSale.salePrice) || 0,
+        bundleId: bundleId
+      })].concat(_toConsumableArray(editLines.map(function (line, idx) {
+        return _objectSpread(_objectSpread({}, origSale), {}, {
+          id: now + idx + 1,
+          itemName: line.itemName,
+          colour: line.colour,
+          size: line.size,
+          salePrice: 0,
+          bundleId: bundleId,
+          topSize: undefined,
+          shortsSize: undefined,
+          note: undefined
+        });
+      })));
+      setSales(function (p) {
+        return [].concat(_toConsumableArray(p.filter(function (s) {
+          return s.id !== id;
+        })), _toConsumableArray(newLines));
+      });
+    } else {
+      setSales(function (p) {
+        return p.map(function (s) {
+          return s.id === id ? _objectSpread(_objectSpread(_objectSpread(_objectSpread({}, s), editForm), extra), {}, {
+            salePrice: parseFloat(editForm.salePrice) || s.salePrice
+          }) : s;
+        });
+      });
+    }
     setEditId(null);
     setEditForm({});
+    setEditLines([]);
   }
 
   // ── Filter options ────────────────────────────────────────────
@@ -4339,11 +4879,11 @@ function TabSales(_ref15) {
       flexWrap: "wrap",
       marginBottom: 10
     }
-  }, [["all", "All", C.offwhite], ["awaiting_stock", "Awaiting Stock", C.blue], ["pending_delivery", "Pending", C.amber], ["shipped", "Shipped", C.purple], ["completed", "Completed", C.green]].map(function (_ref17) {
-    var _ref18 = _slicedToArray(_ref17, 3),
-      k = _ref18[0],
-      lbl = _ref18[1],
-      col = _ref18[2];
+  }, [["all", "All", C.offwhite], ["awaiting_stock", "Awaiting Stock", C.blue], ["pending_delivery", "Pending", C.amber], ["shipped", "Shipped", C.purple], ["completed", "Completed", C.green]].map(function (_ref22) {
+    var _ref23 = _slicedToArray(_ref22, 3),
+      k = _ref23[0],
+      lbl = _ref23[1],
+      col = _ref23[2];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       onClick: function onClick() {
@@ -4440,10 +4980,10 @@ function TabSales(_ref15) {
       marginBottom: 10,
       flexWrap: "wrap"
     }
-  }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"], ["external", "External"]].map(function (_ref19) {
-    var _ref20 = _slicedToArray(_ref19, 2),
-      k = _ref20[0],
-      lbl = _ref20[1];
+  }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"], ["external", "External"]].map(function (_ref24) {
+    var _ref25 = _slicedToArray(_ref24, 2),
+      k = _ref25[0],
+      lbl = _ref25[1];
     var active = form.itemType === "external" ? k === "external" : form.itemName === k && form.itemType === "drifit";
     return /*#__PURE__*/React.createElement("button", {
       key: k,
@@ -5173,10 +5713,10 @@ function TabSales(_ref15) {
         marginBottom: 8,
         flexWrap: "wrap"
       }
-    }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref21) {
-      var _ref22 = _slicedToArray(_ref21, 2),
-        k = _ref22[0],
-        lbl = _ref22[1];
+    }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref26) {
+      var _ref27 = _slicedToArray(_ref26, 2),
+        k = _ref27[0],
+        lbl = _ref27[1];
       var active = editForm.itemName === k;
       return /*#__PURE__*/React.createElement("button", {
         key: k,
@@ -5570,10 +6110,133 @@ function TabSales(_ref15) {
           });
         });
       }
-    }))), /*#__PURE__*/React.createElement("div", {
+    }))), editLines.length > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginBottom: 8
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: C.grey5,
+        fontSize: 9,
+        textTransform: "uppercase",
+        letterSpacing: "0.06em",
+        marginBottom: 4
+      }
+    }, "Additional items in this sale"), editLines.map(function (line, idx) {
+      return /*#__PURE__*/React.createElement("div", {
+        key: line.id,
+        style: {
+          background: C.grey1,
+          borderRadius: 2,
+          padding: "6px 8px",
+          marginBottom: 4,
+          display: "grid",
+          gridTemplateColumns: "1fr auto auto auto",
+          gap: 6,
+          alignItems: "center"
+        }
+      }, /*#__PURE__*/React.createElement("select", {
+        style: {
+          background: C.grey2,
+          border: "1px solid ".concat(C.grey3),
+          color: C.offwhite,
+          borderRadius: 2,
+          padding: "3px 6px",
+          fontSize: 11,
+          outline: "none"
+        },
+        value: line.itemName,
+        onChange: function onChange(e) {
+          return setEditLines(function (p) {
+            return p.map(function (l, i) {
+              return i === idx ? _objectSpread(_objectSpread({}, l), {}, {
+                itemName: e.target.value
+              }) : l;
+            });
+          });
+        }
+      }, ["Nike Park Senior Set", "Park VII Jersey", "Park III Shorts", "Challenger Shorts", "Miler Top"].map(function (n) {
+        return /*#__PURE__*/React.createElement("option", {
+          key: n
+        }, n);
+      })), /*#__PURE__*/React.createElement("input", {
+        list: "edit-line-colours-".concat(idx),
+        style: {
+          background: C.grey2,
+          border: "1px solid ".concat(C.grey3),
+          color: C.offwhite,
+          borderRadius: 2,
+          padding: "3px 6px",
+          fontSize: 11,
+          width: 110,
+          outline: "none"
+        },
+        value: line.colour,
+        onChange: function onChange(e) {
+          return setEditLines(function (p) {
+            return p.map(function (l, i) {
+              return i === idx ? _objectSpread(_objectSpread({}, l), {}, {
+                colour: e.target.value
+              }) : l;
+            });
+          });
+        },
+        placeholder: "Colour"
+      }), /*#__PURE__*/React.createElement("datalist", {
+        id: "edit-line-colours-".concat(idx)
+      }, getColoursForItem(line.itemName).map(function (c) {
+        return /*#__PURE__*/React.createElement("option", {
+          key: c,
+          value: c
+        });
+      })), /*#__PURE__*/React.createElement("select", {
+        style: {
+          background: C.grey2,
+          border: "1px solid ".concat(C.grey3),
+          color: C.offwhite,
+          borderRadius: 2,
+          padding: "3px 6px",
+          fontSize: 11,
+          outline: "none"
+        },
+        value: line.size,
+        onChange: function onChange(e) {
+          return setEditLines(function (p) {
+            return p.map(function (l, i) {
+              return i === idx ? _objectSpread(_objectSpread({}, l), {}, {
+                size: e.target.value
+              }) : l;
+            });
+          });
+        }
+      }, SIZES.map(function (s) {
+        return /*#__PURE__*/React.createElement("option", {
+          key: s
+        }, s);
+      })), /*#__PURE__*/React.createElement("button", {
+        onClick: function onClick() {
+          return setEditLines(function (p) {
+            return p.filter(function (_, i) {
+              return i !== idx;
+            });
+          });
+        },
+        style: {
+          background: "rgba(232,38,10,0.1)",
+          border: "1px solid rgba(232,38,10,0.3)",
+          color: C.red,
+          borderRadius: 2,
+          padding: "2px 6px",
+          fontSize: 9,
+          fontWeight: 700,
+          cursor: "pointer"
+        }
+      }, "\u2715"));
+    })), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
-        gap: 6
+        gap: 6,
+        flexWrap: "wrap"
       }
     }, /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
@@ -5592,7 +6255,30 @@ function TabSales(_ref15) {
       }
     }, "\u2713 Save"), /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
-        return setEditId(null);
+        return setEditLines(function (p) {
+          return [].concat(_toConsumableArray(p), [{
+            id: Date.now(),
+            itemName: editForm.itemName || "Nike Park Senior Set",
+            colour: editForm.colour || "White",
+            size: editForm.size || "M"
+          }]);
+        });
+      },
+      style: {
+        background: "rgba(34,197,94,0.08)",
+        border: "1px solid ".concat(C.green),
+        color: C.green,
+        borderRadius: 2,
+        padding: "4px 10px",
+        fontSize: 10,
+        fontWeight: 700,
+        cursor: "pointer",
+        textTransform: "uppercase"
+      }
+    }, "+ Add Item"), /*#__PURE__*/React.createElement("button", {
+      onClick: function onClick() {
+        setEditId(null);
+        setEditLines([]);
       },
       style: {
         background: C.grey2,
@@ -5773,70 +6459,70 @@ function getSaleStage(sale) {
   if (sale.status === "awaiting_stock") return 1;
   return 3;
 }
-function TabCustomers(_ref23) {
-  var customers = _ref23.customers,
-    setCustomers = _ref23.setCustomers,
-    sales = _ref23.sales,
-    setSales = _ref23.setSales,
-    colours = _ref23.colours,
-    stock = _ref23.stock,
-    onConvertRequest = _ref23.onConvertRequest;
-  var _useState35 = useState("list"),
-    _useState36 = _slicedToArray(_useState35, 2),
-    view = _useState36[0],
-    setView = _useState36[1]; // list | detail | add
-  var _useState37 = useState(null),
-    _useState38 = _slicedToArray(_useState37, 2),
-    selectedId = _useState38[0],
-    setSelectedId = _useState38[1];
-  var _useState39 = useState(false),
-    _useState40 = _slicedToArray(_useState39, 2),
-    showAddForm = _useState40[0],
-    setShowAddForm = _useState40[1];
-  var _useState41 = useState({
+function TabCustomers(_ref28) {
+  var customers = _ref28.customers,
+    setCustomers = _ref28.setCustomers,
+    sales = _ref28.sales,
+    setSales = _ref28.setSales,
+    colours = _ref28.colours,
+    stock = _ref28.stock,
+    onConvertRequest = _ref28.onConvertRequest;
+  var _useState43 = useState("list"),
+    _useState44 = _slicedToArray(_useState43, 2),
+    view = _useState44[0],
+    setView = _useState44[1]; // list | detail | add
+  var _useState45 = useState(null),
+    _useState46 = _slicedToArray(_useState45, 2),
+    selectedId = _useState46[0],
+    setSelectedId = _useState46[1];
+  var _useState47 = useState(false),
+    _useState48 = _slicedToArray(_useState47, 2),
+    showAddForm = _useState48[0],
+    setShowAddForm = _useState48[1];
+  var _useState49 = useState({
       name: "",
       platform: "Vinted",
       note: ""
     }),
-    _useState42 = _slicedToArray(_useState41, 2),
-    addForm = _useState42[0],
-    setAddForm = _useState42[1];
-  var _useState43 = useState(null),
-    _useState44 = _slicedToArray(_useState43, 2),
-    editId = _useState44[0],
-    setEditId = _useState44[1];
-  var _useState45 = useState({}),
-    _useState46 = _slicedToArray(_useState45, 2),
-    editForm = _useState46[0],
-    setEditForm = _useState46[1];
-  var _useState47 = useState(null),
-    _useState48 = _slicedToArray(_useState47, 2),
-    confirmDelete = _useState48[0],
-    setConfirmDelete = _useState48[1];
-  // Request form per customer
-  var _useState49 = useState(null),
     _useState50 = _slicedToArray(_useState49, 2),
-    showReqForm = _useState50[0],
-    setShowReqForm = _useState50[1];
-  var _useState51 = useState([{
+    addForm = _useState50[0],
+    setAddForm = _useState50[1];
+  var _useState51 = useState(null),
+    _useState52 = _slicedToArray(_useState51, 2),
+    editId = _useState52[0],
+    setEditId = _useState52[1];
+  var _useState53 = useState({}),
+    _useState54 = _slicedToArray(_useState53, 2),
+    editForm = _useState54[0],
+    setEditForm = _useState54[1];
+  var _useState55 = useState(null),
+    _useState56 = _slicedToArray(_useState55, 2),
+    confirmDelete = _useState56[0],
+    setConfirmDelete = _useState56[1];
+  // Request form per customer
+  var _useState57 = useState(null),
+    _useState58 = _slicedToArray(_useState57, 2),
+    showReqForm = _useState58[0],
+    setShowReqForm = _useState58[1];
+  var _useState59 = useState([{
       id: Date.now(),
       colour: "",
       size: "M",
       qty: 1,
       note: ""
     }]),
-    _useState52 = _slicedToArray(_useState51, 2),
-    reqLines = _useState52[0],
-    setReqLines = _useState52[1];
+    _useState60 = _slicedToArray(_useState59, 2),
+    reqLines = _useState60[0],
+    setReqLines = _useState60[1];
   // Link sales modal
-  var _useState53 = useState(null),
-    _useState54 = _slicedToArray(_useState53, 2),
-    linkingCustomerId = _useState54[0],
-    setLinkingCustomerId = _useState54[1];
-  var _useState55 = useState(""),
-    _useState56 = _slicedToArray(_useState55, 2),
-    saleSearch = _useState56[0],
-    setSaleSearch = _useState56[1];
+  var _useState61 = useState(null),
+    _useState62 = _slicedToArray(_useState61, 2),
+    linkingCustomerId = _useState62[0],
+    setLinkingCustomerId = _useState62[1];
+  var _useState63 = useState(""),
+    _useState64 = _slicedToArray(_useState63, 2),
+    saleSearch = _useState64[0],
+    setSaleSearch = _useState64[1];
   var selected = customers.find(function (c) {
     return c.id === selectedId;
   });
@@ -6899,38 +7585,38 @@ function TabCustomers(_ref23) {
 }
 
 // ── TAB: Mappings ───────────────────────────────────────────────
-function TabMappings(_ref24) {
-  var mappings = _ref24.mappings,
-    setMappings = _ref24.setMappings,
-    colours = _ref24.colours;
-  var _useState57 = useState(""),
-    _useState58 = _slicedToArray(_useState57, 2),
-    newColourRaw = _useState58[0],
-    setNewColourRaw = _useState58[1];
-  var _useState59 = useState(""),
-    _useState60 = _slicedToArray(_useState59, 2),
-    newColourInternal = _useState60[0],
-    setNewColourInternal = _useState60[1];
-  var _useState61 = useState(""),
-    _useState62 = _slicedToArray(_useState61, 2),
-    newSizeRaw = _useState62[0],
-    setNewSizeRaw = _useState62[1];
-  var _useState63 = useState(""),
-    _useState64 = _slicedToArray(_useState63, 2),
-    newSizeInternal = _useState64[0],
-    setNewSizeInternal = _useState64[1];
-  var _useState65 = useState(null),
+function TabMappings(_ref29) {
+  var mappings = _ref29.mappings,
+    setMappings = _ref29.setMappings,
+    colours = _ref29.colours;
+  var _useState65 = useState(""),
     _useState66 = _slicedToArray(_useState65, 2),
-    editIdx = _useState66[0],
-    setEditIdx = _useState66[1];
-  var _useState67 = useState({}),
+    newColourRaw = _useState66[0],
+    setNewColourRaw = _useState66[1];
+  var _useState67 = useState(""),
     _useState68 = _slicedToArray(_useState67, 2),
-    editForm = _useState68[0],
-    setEditForm = _useState68[1];
-  var _useState69 = useState(null),
+    newColourInternal = _useState68[0],
+    setNewColourInternal = _useState68[1];
+  var _useState69 = useState(""),
     _useState70 = _slicedToArray(_useState69, 2),
-    confirmDelete = _useState70[0],
-    setConfirmDelete = _useState70[1];
+    newSizeRaw = _useState70[0],
+    setNewSizeRaw = _useState70[1];
+  var _useState71 = useState(""),
+    _useState72 = _slicedToArray(_useState71, 2),
+    newSizeInternal = _useState72[0],
+    setNewSizeInternal = _useState72[1];
+  var _useState73 = useState(null),
+    _useState74 = _slicedToArray(_useState73, 2),
+    editIdx = _useState74[0],
+    setEditIdx = _useState74[1];
+  var _useState75 = useState({}),
+    _useState76 = _slicedToArray(_useState75, 2),
+    editForm = _useState76[0],
+    setEditForm = _useState76[1];
+  var _useState77 = useState(null),
+    _useState78 = _slicedToArray(_useState77, 2),
+    confirmDelete = _useState78[0],
+    setConfirmDelete = _useState78[1];
   function addMapping(type, raw, internal) {
     if (!raw.trim() || !internal.trim()) return;
     setMappings(function (p) {
@@ -6966,14 +7652,14 @@ function TabMappings(_ref24) {
     });
     setConfirmDelete(null);
   }
-  var MappingTable = function MappingTable(_ref25) {
-    var type = _ref25.type,
-      title = _ref25.title,
-      newRaw = _ref25.newRaw,
-      setNewRaw = _ref25.setNewRaw,
-      newInternal = _ref25.newInternal,
-      setNewInternal = _ref25.setNewInternal,
-      internalOptions = _ref25.internalOptions;
+  var MappingTable = function MappingTable(_ref30) {
+    var type = _ref30.type,
+      title = _ref30.title,
+      newRaw = _ref30.newRaw,
+      setNewRaw = _ref30.setNewRaw,
+      newInternal = _ref30.newInternal,
+      setNewInternal = _ref30.setNewInternal,
+      internalOptions = _ref30.internalOptions;
     return /*#__PURE__*/React.createElement("div", {
       style: {
         marginBottom: 24
@@ -7362,98 +8048,98 @@ function normaliseValue(raw, mappingList, autoAdd, setMappings, type) {
     matched: false
   };
 }
-function TabPurchases(_ref26) {
+function TabPurchases(_ref31) {
   var _extractedData$total, _matchedPurchase$item, _matchedPurchase$item2;
-  var purchases = _ref26.purchases,
-    setPurchases = _ref26.setPurchases,
-    driStock = _ref26.driStock,
-    setDriStock = _ref26.setDriStock,
-    chinese = _ref26.chinese,
-    setChinese = _ref26.setChinese,
-    colours = _ref26.colours,
-    setColours = _ref26.setColours,
-    mappings = _ref26.mappings,
-    setMappings = _ref26.setMappings,
-    stock = _ref26.stock,
-    setStock = _ref26.setStock;
-  var _useState71 = useState("list"),
-    _useState72 = _slicedToArray(_useState71, 2),
-    view = _useState72[0],
-    setView = _useState72[1]; // list | upload | review | order
-  var _useState73 = useState(false),
-    _useState74 = _slicedToArray(_useState73, 2),
-    uploading = _useState74[0],
-    setUploading = _useState74[1];
-  var _useState75 = useState([{
+  var purchases = _ref31.purchases,
+    setPurchases = _ref31.setPurchases,
+    driStock = _ref31.driStock,
+    setDriStock = _ref31.setDriStock,
+    chinese = _ref31.chinese,
+    setChinese = _ref31.setChinese,
+    colours = _ref31.colours,
+    setColours = _ref31.setColours,
+    mappings = _ref31.mappings,
+    setMappings = _ref31.setMappings,
+    stock = _ref31.stock,
+    setStock = _ref31.setStock;
+  var _useState79 = useState("list"),
+    _useState80 = _slicedToArray(_useState79, 2),
+    view = _useState80[0],
+    setView = _useState80[1]; // list | upload | review | order
+  var _useState81 = useState(false),
+    _useState82 = _slicedToArray(_useState81, 2),
+    uploading = _useState82[0],
+    setUploading = _useState82[1];
+  var _useState83 = useState([{
       id: Date.now(),
       itemName: "Nike Park Senior Set",
       colour: "White",
       size: "M",
       qty: 1
     }]),
-    _useState76 = _slicedToArray(_useState75, 2),
-    orderLines = _useState76[0],
-    setOrderLines = _useState76[1];
-  var _useState77 = useState(new Date().toISOString().slice(0, 10)),
-    _useState78 = _slicedToArray(_useState77, 2),
-    orderDate = _useState78[0],
-    setOrderDate = _useState78[1];
-  var _useState79 = useState("London"),
-    _useState80 = _slicedToArray(_useState79, 2),
-    orderLocation = _useState80[0],
-    setOrderLocation = _useState80[1];
-  var _useState81 = useState("ordered"),
-    _useState82 = _slicedToArray(_useState81, 2),
-    orderDeliveryStatus = _useState82[0],
-    setOrderDeliveryStatus = _useState82[1];
-  var _useState83 = useState("all"),
     _useState84 = _slicedToArray(_useState83, 2),
-    filterSupplier = _useState84[0],
-    setFilterSupplier = _useState84[1];
-  var _useState85 = useState("all"),
+    orderLines = _useState84[0],
+    setOrderLines = _useState84[1];
+  var _useState85 = useState(new Date().toISOString().slice(0, 10)),
     _useState86 = _slicedToArray(_useState85, 2),
-    filterStatus = _useState86[0],
-    setFilterStatus = _useState86[1];
-  var _useState87 = useState(null),
+    orderDate = _useState86[0],
+    setOrderDate = _useState86[1];
+  var _useState87 = useState("London"),
     _useState88 = _slicedToArray(_useState87, 2),
-    editPurchaseId = _useState88[0],
-    setEditPurchaseId = _useState88[1];
-  var _useState89 = useState({}),
+    orderLocation = _useState88[0],
+    setOrderLocation = _useState88[1];
+  var _useState89 = useState("ordered"),
     _useState90 = _slicedToArray(_useState89, 2),
-    editPurchaseForm = _useState90[0],
-    setEditPurchaseForm = _useState90[1];
-  var _useState91 = useState(null),
+    orderDeliveryStatus = _useState90[0],
+    setOrderDeliveryStatus = _useState90[1];
+  var _useState91 = useState("all"),
     _useState92 = _slicedToArray(_useState91, 2),
-    confirmDeletePurchase = _useState92[0],
-    setConfirmDeletePurchase = _useState92[1];
-  var _useState93 = useState(null),
+    filterSupplier = _useState92[0],
+    setFilterSupplier = _useState92[1];
+  var _useState93 = useState("all"),
     _useState94 = _slicedToArray(_useState93, 2),
-    extractedData = _useState94[0],
-    setExtractedData = _useState94[1];
-  var _useState95 = useState([]),
+    filterStatus = _useState94[0],
+    setFilterStatus = _useState94[1];
+  var _useState95 = useState(null),
     _useState96 = _slicedToArray(_useState95, 2),
-    lineItems = _useState96[0],
-    setLineItems = _useState96[1];
-  var _useState97 = useState(null),
+    editPurchaseId = _useState96[0],
+    setEditPurchaseId = _useState96[1];
+  var _useState97 = useState({}),
     _useState98 = _slicedToArray(_useState97, 2),
-    matchedPurchase = _useState98[0],
-    setMatchedPurchase = _useState98[1];
-  var _useState99 = useState(false),
+    editPurchaseForm = _useState98[0],
+    setEditPurchaseForm = _useState98[1];
+  var _useState99 = useState(null),
     _useState100 = _slicedToArray(_useState99, 2),
-    confirmMatch = _useState100[0],
-    setConfirmMatch = _useState100[1];
-  var _useState101 = useState([]),
+    confirmDeletePurchase = _useState100[0],
+    setConfirmDeletePurchase = _useState100[1];
+  var _useState101 = useState(null),
     _useState102 = _slicedToArray(_useState101, 2),
-    reviewItems = _useState102[0],
-    setReviewItems = _useState102[1];
-  var _useState103 = useState(""),
+    extractedData = _useState102[0],
+    setExtractedData = _useState102[1];
+  var _useState103 = useState([]),
     _useState104 = _slicedToArray(_useState103, 2),
-    invoiceText = _useState104[0],
-    setInvoiceText = _useState104[1];
+    lineItems = _useState104[0],
+    setLineItems = _useState104[1];
   var _useState105 = useState(null),
     _useState106 = _slicedToArray(_useState105, 2),
-    error = _useState106[0],
-    setError = _useState106[1];
+    matchedPurchase = _useState106[0],
+    setMatchedPurchase = _useState106[1];
+  var _useState107 = useState(false),
+    _useState108 = _slicedToArray(_useState107, 2),
+    confirmMatch = _useState108[0],
+    setConfirmMatch = _useState108[1];
+  var _useState109 = useState([]),
+    _useState110 = _slicedToArray(_useState109, 2),
+    reviewItems = _useState110[0],
+    setReviewItems = _useState110[1];
+  var _useState111 = useState(""),
+    _useState112 = _slicedToArray(_useState111, 2),
+    invoiceText = _useState112[0],
+    setInvoiceText = _useState112[1];
+  var _useState113 = useState(null),
+    _useState114 = _slicedToArray(_useState113, 2),
+    error = _useState114[0],
+    setError = _useState114[1];
   var fileRef = useRef(null);
   var allPurchases = useMemo(function () {
     // Match user purchases to INIT by id OR invoiceNumber
@@ -7982,10 +8668,10 @@ function TabPurchases(_ref26) {
         marginBottom: 8,
         flexWrap: "wrap"
       }
-    }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref27) {
-      var _ref28 = _slicedToArray(_ref27, 2),
-        k = _ref28[0],
-        lbl = _ref28[1];
+    }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref32) {
+      var _ref33 = _slicedToArray(_ref32, 2),
+        k = _ref33[0],
+        lbl = _ref33[1];
       var active = line.itemName === k;
       return /*#__PURE__*/React.createElement("button", {
         key: k,
@@ -9591,12 +10277,12 @@ function TabPurchases(_ref26) {
 
 // ── TAB: Birmingham Stock ──────────────────────────────────────
 
-function ChineseEditForm(_ref29) {
-  var item = _ref29.item,
-    setChinese = _ref29.setChinese,
-    colours = _ref29.colours,
-    onClose = _ref29.onClose;
-  var _useState107 = useState({
+function ChineseEditForm(_ref34) {
+  var item = _ref34.item,
+    setChinese = _ref34.setChinese,
+    colours = _ref34.colours,
+    onClose = _ref34.onClose;
+  var _useState115 = useState({
       item: item.item || "",
       colour: item.colour || "",
       size: item.size || "",
@@ -9606,9 +10292,9 @@ function ChineseEditForm(_ref29) {
       location: item.location || "you",
       supplier: item.supplier || ""
     }),
-    _useState108 = _slicedToArray(_useState107, 2),
-    form = _useState108[0],
-    setForm = _useState108[1];
+    _useState116 = _slicedToArray(_useState115, 2),
+    form = _useState116[0],
+    setForm = _useState116[1];
   function save() {
     setChinese(function (p) {
       return p.map(function (c) {
@@ -9926,18 +10612,18 @@ function ChineseEditForm(_ref29) {
     }
   }, "Cancel")));
 }
-function ChineseSaleBtn(_ref30) {
+function ChineseSaleBtn(_ref35) {
   var _item$salePrice;
-  var item = _ref30.item,
-    setChinese = _ref30.setChinese;
-  var _useState109 = useState(false),
-    _useState110 = _slicedToArray(_useState109, 2),
-    show = _useState110[0],
-    setShow = _useState110[1];
-  var _useState111 = useState(""),
-    _useState112 = _slicedToArray(_useState111, 2),
-    price = _useState112[0],
-    setPrice = _useState112[1];
+  var item = _ref35.item,
+    setChinese = _ref35.setChinese;
+  var _useState117 = useState(false),
+    _useState118 = _slicedToArray(_useState117, 2),
+    show = _useState118[0],
+    setShow = _useState118[1];
+  var _useState119 = useState(""),
+    _useState120 = _slicedToArray(_useState119, 2),
+    price = _useState120[0],
+    setPrice = _useState120[1];
   if (item.location === "sold") return /*#__PURE__*/React.createElement(Tag, {
     bg: "rgba(34,197,94,0.15)",
     fg: C.green
@@ -10026,59 +10712,59 @@ function ChineseSaleBtn(_ref30) {
     }
   }, "\xA3 Sold");
 }
-function TabBirmingham(_ref31) {
-  var chinese = _ref31.chinese,
-    setChinese = _ref31.setChinese,
-    driStock = _ref31.driStock,
-    setDriStock = _ref31.setDriStock,
-    acceptedOffers = _ref31.acceptedOffers,
-    purchases = _ref31.purchases,
-    colours = _ref31.colours,
-    stock = _ref31.stock,
-    setStock = _ref31.setStock,
-    sales = _ref31.sales,
-    setSales = _ref31.setSales;
-  var _useState113 = useState("overview"),
-    _useState114 = _slicedToArray(_useState113, 2),
-    subTab = _useState114[0],
-    setSubTab = _useState114[1];
-  var _useState115 = useState(null),
-    _useState116 = _slicedToArray(_useState115, 2),
-    confirmRemoveBham = _useState116[0],
-    setConfirmRemoveBham = _useState116[1];
-  var _useState117 = useState(false),
-    _useState118 = _slicedToArray(_useState117, 2),
-    showAddStock = _useState118[0],
-    setShowAddStock = _useState118[1];
-  var _useState119 = useState({
+function TabBirmingham(_ref36) {
+  var chinese = _ref36.chinese,
+    setChinese = _ref36.setChinese,
+    driStock = _ref36.driStock,
+    setDriStock = _ref36.setDriStock,
+    acceptedOffers = _ref36.acceptedOffers,
+    purchases = _ref36.purchases,
+    colours = _ref36.colours,
+    stock = _ref36.stock,
+    setStock = _ref36.setStock,
+    sales = _ref36.sales,
+    setSales = _ref36.setSales;
+  var _useState121 = useState("overview"),
+    _useState122 = _slicedToArray(_useState121, 2),
+    subTab = _useState122[0],
+    setSubTab = _useState122[1];
+  var _useState123 = useState(null),
+    _useState124 = _slicedToArray(_useState123, 2),
+    confirmRemoveBham = _useState124[0],
+    setConfirmRemoveBham = _useState124[1];
+  var _useState125 = useState(false),
+    _useState126 = _slicedToArray(_useState125, 2),
+    showAddStock = _useState126[0],
+    setShowAddStock = _useState126[1];
+  var _useState127 = useState({
       colour: "White",
       size: "M",
       qty: "1",
       status: "in_stock"
     }),
-    _useState120 = _slicedToArray(_useState119, 2),
-    addStockForm = _useState120[0],
-    setAddStockForm = _useState120[1];
-  var _useState121 = useState(null),
-    _useState122 = _slicedToArray(_useState121, 2),
-    editChineseId = _useState122[0],
-    setEditChineseId = _useState122[1];
-  var _useState123 = useState(null),
-    _useState124 = _slicedToArray(_useState123, 2),
-    confirmDeleteChinese = _useState124[0],
-    setConfirmDeleteChinese = _useState124[1];
-  var _useState125 = useState("all"),
-    _useState126 = _slicedToArray(_useState125, 2),
-    filterTypeBham = _useState126[0],
-    setFilterTypeBham = _useState126[1];
-  var _useState127 = useState("all"),
     _useState128 = _slicedToArray(_useState127, 2),
-    filterSupplierBham = _useState128[0],
-    setFilterSupplierBham = _useState128[1];
-  var _useState129 = useState("all"),
+    addStockForm = _useState128[0],
+    setAddStockForm = _useState128[1];
+  var _useState129 = useState(null),
     _useState130 = _slicedToArray(_useState129, 2),
-    filterColourBham = _useState130[0],
-    setFilterColourBham = _useState130[1];
+    editChineseId = _useState130[0],
+    setEditChineseId = _useState130[1];
+  var _useState131 = useState(null),
+    _useState132 = _slicedToArray(_useState131, 2),
+    confirmDeleteChinese = _useState132[0],
+    setConfirmDeleteChinese = _useState132[1];
+  var _useState133 = useState("all"),
+    _useState134 = _slicedToArray(_useState133, 2),
+    filterTypeBham = _useState134[0],
+    setFilterTypeBham = _useState134[1];
+  var _useState135 = useState("all"),
+    _useState136 = _slicedToArray(_useState135, 2),
+    filterSupplierBham = _useState136[0],
+    setFilterSupplierBham = _useState136[1];
+  var _useState137 = useState("all"),
+    _useState138 = _slicedToArray(_useState137, 2),
+    filterColourBham = _useState138[0],
+    setFilterColourBham = _useState138[1];
   function removeOneBhamStock(colour, size, status) {
     var removed = false;
     setDriStock(function (p) {
@@ -10092,10 +10778,10 @@ function TabBirmingham(_ref31) {
     });
     setConfirmRemoveBham(null);
   }
-  var _useState131 = useState(false),
-    _useState132 = _slicedToArray(_useState131, 2),
-    bhamSyncing = _useState132[0],
-    setBhamSyncing = _useState132[1];
+  var _useState139 = useState(false),
+    _useState140 = _slicedToArray(_useState139, 2),
+    bhamSyncing = _useState140[0],
+    setBhamSyncing = _useState140[1];
   function syncBhamStock() {
     setBhamSyncing(true);
     // Count completed+pending+shipped Birmingham drifit sales
@@ -10119,10 +10805,10 @@ function TabBirmingham(_ref31) {
         requiredCount[k] = (requiredCount[k] || 0) + 1;
       });
       // Only mark the NET difference — idempotent
-      Object.entries(requiredCount).forEach(function (_ref32) {
-        var _ref33 = _slicedToArray(_ref32, 2),
-          k = _ref33[0],
-          needed = _ref33[1];
+      Object.entries(requiredCount).forEach(function (_ref37) {
+        var _ref38 = _slicedToArray(_ref37, 2),
+          k = _ref38[0],
+          needed = _ref38[1];
         var extra = needed - (alreadySoldCount[k] || 0);
         if (extra <= 0) return;
         var lastDash = k.lastIndexOf("-");
@@ -10269,11 +10955,11 @@ function TabBirmingham(_ref31) {
       });
     });
   }
-  var BhamStockTable = function BhamStockTable(_ref34) {
-    var data = _ref34.data,
-      colourFn = _ref34.colourFn,
-      showMarkArrived = _ref34.showMarkArrived,
-      stockStatus = _ref34.stockStatus;
+  var BhamStockTable = function BhamStockTable(_ref39) {
+    var data = _ref39.data,
+      colourFn = _ref39.colourFn,
+      showMarkArrived = _ref39.showMarkArrived,
+      stockStatus = _ref39.stockStatus;
     return /*#__PURE__*/React.createElement("div", {
       style: {
         background: C.grey1,
@@ -10303,10 +10989,10 @@ function TabBirmingham(_ref31) {
           letterSpacing: "0.07em"
         }
       }, h);
-    }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(data).sort().map(function (_ref35, i) {
-      var _ref36 = _slicedToArray(_ref35, 2),
-        k = _ref36[0],
-        v = _ref36[1];
+    }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(data).sort().map(function (_ref40, i) {
+      var _ref41 = _slicedToArray(_ref40, 2),
+        k = _ref41[0],
+        v = _ref41[1];
       var demKey = normaliseColour(v.colour) + "-" + v.size;
       var dem = demand[demKey] || 0;
       var removeKey = k + "-" + (stockStatus || "in_stock");
@@ -10513,10 +11199,10 @@ function TabBirmingham(_ref31) {
       marginBottom: 14,
       overflowX: "auto"
     }
-  }, [["overview", "Overview"], ["preorder", "Pre-ordered (" + bhamPreOrdered.length + ")"], ["sell", "With Friend (" + bhamToSell.length + ")"], ["history", "History"]].map(function (_ref37) {
-    var _ref38 = _slicedToArray(_ref37, 2),
-      k = _ref38[0],
-      lbl = _ref38[1];
+  }, [["overview", "Overview"], ["preorder", "Pre-ordered (" + bhamPreOrdered.length + ")"], ["sell", "With Friend (" + bhamToSell.length + ")"], ["history", "History"]].map(function (_ref42) {
+    var _ref43 = _slicedToArray(_ref42, 2),
+      k = _ref43[0],
+      lbl = _ref43[1];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       onClick: function onClick() {
@@ -10544,12 +11230,12 @@ function TabBirmingham(_ref31) {
       flexWrap: "wrap",
       marginBottom: 14
     }
-  }, [["Pre-ordered", bhamPreOrdered.length, "on the way", C.amber], ["With Friend", bhamToSell.length, "delivered", C.purple], ["Sold", bhamSold.length, "completed", C.green]].map(function (_ref39) {
-    var _ref40 = _slicedToArray(_ref39, 4),
-      lbl = _ref40[0],
-      val = _ref40[1],
-      sub = _ref40[2],
-      col = _ref40[3];
+  }, [["Pre-ordered", bhamPreOrdered.length, "on the way", C.amber], ["With Friend", bhamToSell.length, "delivered", C.purple], ["Sold", bhamSold.length, "completed", C.green]].map(function (_ref44) {
+    var _ref45 = _slicedToArray(_ref44, 4),
+      lbl = _ref45[0],
+      val = _ref45[1],
+      sub = _ref45[2],
+      col = _ref45[3];
     return /*#__PURE__*/React.createElement("div", {
       key: lbl,
       style: {
@@ -11219,10 +11905,10 @@ function TabBirmingham(_ref31) {
     }, h);
   }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(totalsMap).sort(function (a, b) {
     return a[0].localeCompare(b[0]);
-  }).map(function (_ref41, i) {
-    var _ref42 = _slicedToArray(_ref41, 2),
-      k = _ref42[0],
-      v = _ref42[1];
+  }).map(function (_ref46, i) {
+    var _ref47 = _slicedToArray(_ref46, 2),
+      k = _ref47[0],
+      v = _ref47[1];
     var total = v.preorder + v.inStock;
     var dem = demand[k] || 0;
     var status = v.preorder > 0 ? "preorder" : "in_stock";
@@ -11576,10 +12262,10 @@ function TabBirmingham(_ref31) {
         gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))",
         gap: 5
       }
-    }, Object.entries(itemMap).sort().map(function (_ref43) {
-      var _ref44 = _slicedToArray(_ref43, 2),
-        k = _ref44[0],
-        qty = _ref44[1];
+    }, Object.entries(itemMap).sort().map(function (_ref48) {
+      var _ref49 = _slicedToArray(_ref48, 2),
+        k = _ref49[0],
+        qty = _ref49[1];
       var _k$split3 = k.split("-"),
         _k$split4 = _slicedToArray(_k$split3, 2),
         col = _k$split4[0],
@@ -11609,30 +12295,30 @@ function TabBirmingham(_ref31) {
     })));
   })));
 }
-function TabStock(_ref45) {
-  var driStock = _ref45.driStock,
-    setDriStock = _ref45.setDriStock,
-    acceptedOffers = _ref45.acceptedOffers,
-    purchases = _ref45.purchases,
-    setPurchases = _ref45.setPurchases,
-    chinese = _ref45.chinese,
-    setChinese = _ref45.setChinese,
-    colours = _ref45.colours,
-    setOffers = _ref45.setOffers,
-    sales = _ref45.sales,
-    setSales = _ref45.setSales,
-    bhamSales = _ref45.bhamSales,
-    stock = _ref45.stock,
-    setStock = _ref45.setStock;
-  var _useState133 = useState("overview"),
-    _useState134 = _slicedToArray(_useState133, 2),
-    subTab = _useState134[0],
-    setSubTab = _useState134[1];
-  var _useState135 = useState(false),
-    _useState136 = _slicedToArray(_useState135, 2),
-    showAddStock = _useState136[0],
-    setShowAddStock = _useState136[1];
-  var _useState137 = useState({
+function TabStock(_ref50) {
+  var driStock = _ref50.driStock,
+    setDriStock = _ref50.setDriStock,
+    acceptedOffers = _ref50.acceptedOffers,
+    purchases = _ref50.purchases,
+    setPurchases = _ref50.setPurchases,
+    chinese = _ref50.chinese,
+    setChinese = _ref50.setChinese,
+    colours = _ref50.colours,
+    setOffers = _ref50.setOffers,
+    sales = _ref50.sales,
+    setSales = _ref50.setSales,
+    bhamSales = _ref50.bhamSales,
+    stock = _ref50.stock,
+    setStock = _ref50.setStock;
+  var _useState141 = useState("overview"),
+    _useState142 = _slicedToArray(_useState141, 2),
+    subTab = _useState142[0],
+    setSubTab = _useState142[1];
+  var _useState143 = useState(false),
+    _useState144 = _slicedToArray(_useState143, 2),
+    showAddStock = _useState144[0],
+    setShowAddStock = _useState144[1];
+  var _useState145 = useState({
       colour: "White",
       size: "M",
       topSize: "M",
@@ -11641,41 +12327,41 @@ function TabStock(_ref45) {
       qty: "1",
       status: "in_stock"
     }),
-    _useState138 = _slicedToArray(_useState137, 2),
-    addStockForm = _useState138[0],
-    setAddStockForm = _useState138[1];
-  var _useState139 = useState(null),
-    _useState140 = _slicedToArray(_useState139, 2),
-    confirmRemove = _useState140[0],
-    setConfirmRemove = _useState140[1];
-  var _useState141 = useState(null),
-    _useState142 = _slicedToArray(_useState141, 2),
-    editPurchaseId = _useState142[0],
-    setEditPurchaseId = _useState142[1];
-  var _useState143 = useState({}),
-    _useState144 = _slicedToArray(_useState143, 2),
-    editPurchaseForm = _useState144[0],
-    setEditPurchaseForm = _useState144[1];
-  var _useState145 = useState(null),
     _useState146 = _slicedToArray(_useState145, 2),
-    confirmDeletePurchase = _useState146[0],
-    setConfirmDeletePurchase = _useState146[1];
+    addStockForm = _useState146[0],
+    setAddStockForm = _useState146[1];
   var _useState147 = useState(null),
     _useState148 = _slicedToArray(_useState147, 2),
-    editChineseId = _useState148[0],
-    setEditChineseId = _useState148[1];
+    confirmRemove = _useState148[0],
+    setConfirmRemove = _useState148[1];
   var _useState149 = useState(null),
     _useState150 = _slicedToArray(_useState149, 2),
-    confirmDeleteChinese = _useState150[0],
-    setConfirmDeleteChinese = _useState150[1];
-  var _useState151 = useState("all"),
+    editPurchaseId = _useState150[0],
+    setEditPurchaseId = _useState150[1];
+  var _useState151 = useState({}),
     _useState152 = _slicedToArray(_useState151, 2),
-    filterType = _useState152[0],
-    setFilterType = _useState152[1];
-  var _useState153 = useState(false),
+    editPurchaseForm = _useState152[0],
+    setEditPurchaseForm = _useState152[1];
+  var _useState153 = useState(null),
     _useState154 = _slicedToArray(_useState153, 2),
-    syncing = _useState154[0],
-    setSyncing = _useState154[1];
+    confirmDeletePurchase = _useState154[0],
+    setConfirmDeletePurchase = _useState154[1];
+  var _useState155 = useState(null),
+    _useState156 = _slicedToArray(_useState155, 2),
+    editChineseId = _useState156[0],
+    setEditChineseId = _useState156[1];
+  var _useState157 = useState(null),
+    _useState158 = _slicedToArray(_useState157, 2),
+    confirmDeleteChinese = _useState158[0],
+    setConfirmDeleteChinese = _useState158[1];
+  var _useState159 = useState("all"),
+    _useState160 = _slicedToArray(_useState159, 2),
+    filterType = _useState160[0],
+    setFilterType = _useState160[1];
+  var _useState161 = useState(false),
+    _useState162 = _slicedToArray(_useState161, 2),
+    syncing = _useState162[0],
+    setSyncing = _useState162[1];
   function syncStock() {
     setSyncing(true);
     var completedSales = (sales || []).filter(function (s) {
@@ -11698,10 +12384,10 @@ function TabStock(_ref45) {
         requiredCount[k] = (requiredCount[k] || 0) + 1;
       });
       // Only mark the NET difference — makes sync fully idempotent
-      Object.entries(requiredCount).forEach(function (_ref46) {
-        var _ref47 = _slicedToArray(_ref46, 2),
-          k = _ref47[0],
-          needed = _ref47[1];
+      Object.entries(requiredCount).forEach(function (_ref51) {
+        var _ref52 = _slicedToArray(_ref51, 2),
+          k = _ref52[0],
+          needed = _ref52[1];
         var extra = needed - (alreadySoldCount[k] || 0);
         if (extra <= 0) return;
         var _k$split5 = k.split("-"),
@@ -11726,14 +12412,14 @@ function TabStock(_ref45) {
       return setSyncing(false);
     }, 600);
   }
-  var _useState155 = useState("all"),
-    _useState156 = _slicedToArray(_useState155, 2),
-    filterSupplierStock = _useState156[0],
-    setFilterSupplierStock = _useState156[1];
-  var _useState157 = useState("all"),
-    _useState158 = _slicedToArray(_useState157, 2),
-    filterColourStock = _useState158[0],
-    setFilterColourStock = _useState158[1];
+  var _useState163 = useState("all"),
+    _useState164 = _slicedToArray(_useState163, 2),
+    filterSupplierStock = _useState164[0],
+    setFilterSupplierStock = _useState164[1];
+  var _useState165 = useState("all"),
+    _useState166 = _slicedToArray(_useState165, 2),
+    filterColourStock = _useState166[0],
+    setFilterColourStock = _useState166[1];
   function removeOneStock(colour, size, status) {
     var removed = false;
     setDriStock(function (p) {
@@ -11795,16 +12481,16 @@ function TabStock(_ref45) {
 
   // Combined demand
   var demand = {};
-  Object.entries(offerDemand).forEach(function (_ref48) {
-    var _ref49 = _slicedToArray(_ref48, 2),
-      k = _ref49[0],
-      n = _ref49[1];
+  Object.entries(offerDemand).forEach(function (_ref53) {
+    var _ref54 = _slicedToArray(_ref53, 2),
+      k = _ref54[0],
+      n = _ref54[1];
     return demand[k] = (demand[k] || 0) + n;
   });
-  Object.entries(salesDemand).forEach(function (_ref50) {
-    var _ref51 = _slicedToArray(_ref50, 2),
-      k = _ref51[0],
-      n = _ref51[1];
+  Object.entries(salesDemand).forEach(function (_ref55) {
+    var _ref56 = _slicedToArray(_ref55, 2),
+      k = _ref56[0],
+      n = _ref56[1];
     return demand[k] = (demand[k] || 0) + n;
   });
 
@@ -11928,10 +12614,10 @@ function TabStock(_ref45) {
       });
     });
   }
-  var uncovered = Object.entries(demand).filter(function (_ref52) {
-    var _ref53 = _slicedToArray(_ref52, 2),
-      k = _ref53[0],
-      n = _ref53[1];
+  var uncovered = Object.entries(demand).filter(function (_ref57) {
+    var _ref58 = _slicedToArray(_ref57, 2),
+      k = _ref58[0],
+      n = _ref58[1];
     return (availableMap[k] || 0) < n && (incomingMap[k] || 0) < n;
   });
 
@@ -11959,11 +12645,11 @@ function TabStock(_ref45) {
     acc[k].qty++;
     return acc;
   }, {});
-  var StockTable = function StockTable(_ref54) {
-    var data = _ref54.data,
-      colourFn = _ref54.colourFn,
-      showMarkArrived = _ref54.showMarkArrived,
-      stockStatus = _ref54.stockStatus;
+  var StockTable = function StockTable(_ref59) {
+    var data = _ref59.data,
+      colourFn = _ref59.colourFn,
+      showMarkArrived = _ref59.showMarkArrived,
+      stockStatus = _ref59.stockStatus;
     return /*#__PURE__*/React.createElement("div", {
       style: {
         background: C.grey1,
@@ -11993,10 +12679,10 @@ function TabStock(_ref45) {
           letterSpacing: "0.07em"
         }
       }, h);
-    }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(data).sort().map(function (_ref55, i) {
-      var _ref56 = _slicedToArray(_ref55, 2),
-        k = _ref56[0],
-        v = _ref56[1];
+    }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(data).sort().map(function (_ref60, i) {
+      var _ref61 = _slicedToArray(_ref60, 2),
+        k = _ref61[0],
+        v = _ref61[1];
       var demKey = normaliseColour(v.colour) + "-" + v.size;
       var dem = demand[demKey] || 0;
       var removeKey = k + "-" + (stockStatus || "in_stock");
@@ -12192,10 +12878,10 @@ function TabStock(_ref45) {
       marginBottom: 14,
       overflowX: "auto"
     }
-  }, [["overview", "Overview"], ["preorder", "Pre-ordered (" + preOrdered.length + ")"], ["sell", "To Sell (" + toSell.length + ")"], ["history", "History"]].map(function (_ref57) {
-    var _ref58 = _slicedToArray(_ref57, 2),
-      k = _ref58[0],
-      lbl = _ref58[1];
+  }, [["overview", "Overview"], ["preorder", "Pre-ordered (" + preOrdered.length + ")"], ["sell", "To Sell (" + toSell.length + ")"], ["history", "History"]].map(function (_ref62) {
+    var _ref63 = _slicedToArray(_ref62, 2),
+      k = _ref63[0],
+      lbl = _ref63[1];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       onClick: function onClick() {
@@ -12223,12 +12909,12 @@ function TabStock(_ref45) {
       flexWrap: "wrap",
       marginBottom: 14
     }
-  }, [["Pre-ordered", preOrdered.length, "on the way", C.amber], ["Ready to Sell", toSell.length, "in hand", C.green], ["Accepted Offers", acceptedOffers.length, uncovered.length > 0 ? uncovered.length + " not covered" : "all covered", C.red]].map(function (_ref59) {
-    var _ref60 = _slicedToArray(_ref59, 4),
-      lbl = _ref60[0],
-      val = _ref60[1],
-      sub = _ref60[2],
-      col = _ref60[3];
+  }, [["Pre-ordered", preOrdered.length, "on the way", C.amber], ["Ready to Sell", toSell.length, "in hand", C.green], ["Accepted Offers", acceptedOffers.length, uncovered.length > 0 ? uncovered.length + " not covered" : "all covered", C.red]].map(function (_ref64) {
+    var _ref65 = _slicedToArray(_ref64, 4),
+      lbl = _ref65[0],
+      val = _ref65[1],
+      sub = _ref65[2],
+      col = _ref65[3];
     return /*#__PURE__*/React.createElement("div", {
       key: lbl,
       style: {
@@ -12295,10 +12981,10 @@ function TabStock(_ref45) {
       textTransform: "uppercase",
       letterSpacing: "0.05em"
     }
-  }, "\u21BB Refresh")), Object.entries(demand).map(function (_ref61) {
-    var _ref62 = _slicedToArray(_ref61, 2),
-      k = _ref62[0],
-      n = _ref62[1];
+  }, "\u21BB Refresh")), Object.entries(demand).map(function (_ref66) {
+    var _ref67 = _slicedToArray(_ref66, 2),
+      k = _ref67[0],
+      n = _ref67[1];
     // Key format is colour-size - split on last hyphen to handle colours with hyphens
     var lastDash = k.lastIndexOf("-");
     var col = k.slice(0, lastDash);
@@ -12677,10 +13363,10 @@ function TabStock(_ref45) {
     // Group by itemName then sort within each group by colour+size
     var GROUP_ORDER = ["Nike Park Senior Set", "Park VII Jersey", "Park III Shorts", "Miler Top", "Challenger Shorts"];
     var grouped = {};
-    Object.entries(totalsMap).forEach(function (_ref63) {
-      var _ref64 = _slicedToArray(_ref63, 2),
-        k = _ref64[0],
-        v = _ref64[1];
+    Object.entries(totalsMap).forEach(function (_ref68) {
+      var _ref69 = _slicedToArray(_ref68, 2),
+        k = _ref69[0],
+        v = _ref69[1];
       var g = v.itemName || "Nike Park Senior Set";
       if (!grouped[g]) grouped[g] = [];
       grouped[g].push([k, v]);
@@ -12691,9 +13377,9 @@ function TabStock(_ref45) {
       var items = grouped[grp];
       if (!items || items.length === 0) return;
       var grpLabel = grp === "Nike Park Senior Set" ? "Park Senior Sets" : grp === "Park VII Jersey" ? "Park VII Jerseys" : grp === "Park III Shorts" ? "Park III Shorts" : grp === "Miler Top" ? "Miler Tops" : "Challenger Shorts";
-      var grpTotal = items.reduce(function (a, _ref65) {
-        var _ref66 = _slicedToArray(_ref65, 2),
-          v = _ref66[1];
+      var grpTotal = items.reduce(function (a, _ref70) {
+        var _ref71 = _slicedToArray(_ref70, 2),
+          v = _ref71[1];
         return a + v.preorder + v.inStock;
       }, 0);
       rows.push(/*#__PURE__*/React.createElement("tr", {
@@ -12717,10 +13403,10 @@ function TabStock(_ref45) {
       }, "(", grpTotal, " in stock)"))));
       items.sort(function (a, b) {
         return a[0].localeCompare(b[0]);
-      }).forEach(function (_ref67) {
-        var _ref68 = _slicedToArray(_ref67, 2),
-          k = _ref68[0],
-          v = _ref68[1];
+      }).forEach(function (_ref72) {
+        var _ref73 = _slicedToArray(_ref72, 2),
+          k = _ref73[0],
+          v = _ref73[1];
         var i = rowIdx++;
         var demKey = normaliseColour(v.colour) + "-" + v.size;
         var dem = demand[demKey] || 0;
@@ -13577,10 +14263,10 @@ function TabStock(_ref45) {
         gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))",
         gap: 5
       }
-    }, Object.entries(p.itemMap).sort().map(function (_ref69) {
-      var _ref70 = _slicedToArray(_ref69, 2),
-        k = _ref70[0],
-        qty = _ref70[1];
+    }, Object.entries(p.itemMap).sort().map(function (_ref74) {
+      var _ref75 = _slicedToArray(_ref74, 2),
+        k = _ref75[0],
+        qty = _ref75[1];
       var _k$split7 = k.split("-"),
         _k$split8 = _slicedToArray(_k$split7, 2),
         col = _k$split8[0],
@@ -13637,10 +14323,10 @@ function TabStock(_ref45) {
       acc[k] = (acc[k] || 0) + 1;
     });
     return acc;
-  }, {})).sort().map(function (_ref71) {
-    var _ref72 = _slicedToArray(_ref71, 2),
-      k = _ref72[0],
-      qty = _ref72[1];
+  }, {})).sort().map(function (_ref76) {
+    var _ref77 = _slicedToArray(_ref76, 2),
+      k = _ref77[0],
+      qty = _ref77[1];
     var _k$split9 = k.split("-"),
       _k$split0 = _slicedToArray(_k$split9, 2),
       col = _k$split0[0],
@@ -13689,14 +14375,14 @@ function TabStock(_ref45) {
 }
 
 // ── TAB: Cost Calculator ───────────────────────────────────────
-function TabCalc(_ref73) {
-  var chinese = _ref73.chinese,
-    setChinese = _ref73.setChinese;
-  var _useState159 = useState(false),
-    _useState160 = _slicedToArray(_useState159, 2),
-    show = _useState160[0],
-    setShow = _useState160[1];
-  var _useState161 = useState({
+function TabCalc(_ref78) {
+  var chinese = _ref78.chinese,
+    setChinese = _ref78.setChinese;
+  var _useState167 = useState(false),
+    _useState168 = _slicedToArray(_useState167, 2),
+    show = _useState168[0],
+    setShow = _useState168[1];
+  var _useState169 = useState({
       item: "",
       colour: "",
       size: "",
@@ -13707,9 +14393,9 @@ function TabCalc(_ref73) {
       wiseRate: "0.1902",
       note: ""
     }),
-    _useState162 = _slicedToArray(_useState161, 2),
-    form = _useState162[0],
-    setForm = _useState162[1];
+    _useState170 = _slicedToArray(_useState169, 2),
+    form = _useState170[0],
+    setForm = _useState170[1];
   function add() {
     if (!form.item || !form.costMYR) return;
     var total = parseFloat(form.costMYR) + (parseFloat(form.shippingMYR) || 0) + (parseFloat(form.fixedMYR) || 0);
@@ -13793,12 +14479,12 @@ function TabCalc(_ref73) {
       gap: 10,
       marginBottom: 10
     }
-  }, [["Item Name", "item", "text", "Nike Air Force 1"], ["Colour", "colour", "text", "White"], ["Size", "size", "text", "UK9"], ["Cost MYR", "costMYR", "number", "250.00"], ["Shipping MYR", "shippingMYR", "number", "45.00"], ["Fixed fees MYR", "fixedMYR", "number", "10.00"], ["Wise Rate", "wiseRate", "number", "0.1902"], ["Note", "note", "text", "optional"]].map(function (_ref74) {
-    var _ref75 = _slicedToArray(_ref74, 4),
-      lbl = _ref75[0],
-      k = _ref75[1],
-      t = _ref75[2],
-      ph = _ref75[3];
+  }, [["Item Name", "item", "text", "Nike Air Force 1"], ["Colour", "colour", "text", "White"], ["Size", "size", "text", "UK9"], ["Cost MYR", "costMYR", "number", "250.00"], ["Shipping MYR", "shippingMYR", "number", "45.00"], ["Fixed fees MYR", "fixedMYR", "number", "10.00"], ["Wise Rate", "wiseRate", "number", "0.1902"], ["Note", "note", "text", "optional"]].map(function (_ref79) {
+    var _ref80 = _slicedToArray(_ref79, 4),
+      lbl = _ref80[0],
+      k = _ref80[1],
+      t = _ref80[2],
+      ph = _ref80[3];
     return /*#__PURE__*/React.createElement("div", {
       key: k
     }, /*#__PURE__*/React.createElement("div", {
@@ -14248,9 +14934,9 @@ function _supaLoadAll() {
         case 3:
           rows = _context8.v;
           out = {};
-          rows.forEach(function (_ref79) {
-            var key = _ref79.key,
-              value = _ref79.value;
+          rows.forEach(function (_ref84) {
+            var key = _ref84.key,
+              value = _ref84.value;
             return out[key] = value;
           });
           return _context8.a(2, out);
@@ -14287,10 +14973,10 @@ function saveOfferStatuses(offers) {
 // Without this gate, the hook writes INIT defaults to Supabase on first render,
 // overwriting real data before the load finishes.
 function useSupabase(key, initialValue, readyRef) {
-  var _useState163 = useState(initialValue),
-    _useState164 = _slicedToArray(_useState163, 2),
-    state = _useState164[0],
-    setState = _useState164[1];
+  var _useState171 = useState(initialValue),
+    _useState172 = _slicedToArray(_useState171, 2),
+    state = _useState172[0],
+    setState = _useState172[1];
   var isFirst = useRef(true);
   useEffect(function () {
     // Skip the very first render (initial value) and skip if not loaded yet
@@ -14312,45 +14998,45 @@ function useSupabase(key, initialValue, readyRef) {
 // ── ROOT ───────────────────────────────────────────────────────
 function App() {
   var importRef = useRef(null);
-  var _useState165 = useState(null),
-    _useState166 = _slicedToArray(_useState165, 2),
-    confirmImport = _useState166[0],
-    setConfirmImport = _useState166[1];
-  var _useState167 = useState(false),
-    _useState168 = _slicedToArray(_useState167, 2),
-    confirmReset = _useState168[0],
-    setConfirmReset = _useState168[1];
-  var _useState169 = useState(true),
-    _useState170 = _slicedToArray(_useState169, 2),
-    loading = _useState170[0],
-    setLoading = _useState170[1]; // true while fetching from Supabase
+  var _useState173 = useState(null),
+    _useState174 = _slicedToArray(_useState173, 2),
+    confirmImport = _useState174[0],
+    setConfirmImport = _useState174[1];
+  var _useState175 = useState(false),
+    _useState176 = _slicedToArray(_useState175, 2),
+    confirmReset = _useState176[0],
+    setConfirmReset = _useState176[1];
+  var _useState177 = useState(true),
+    _useState178 = _slicedToArray(_useState177, 2),
+    loading = _useState178[0],
+    setLoading = _useState178[1]; // true while fetching from Supabase
 
-  var _useState171 = useState("sales"),
-    _useState172 = _slicedToArray(_useState171, 2),
-    tab = _useState172[0],
-    setTab = _useState172[1];
+  var _useState179 = useState("sales"),
+    _useState180 = _slicedToArray(_useState179, 2),
+    tab = _useState180[0],
+    setTab = _useState180[1];
 
   // ── All state starts with INIT defaults; overwritten once Supabase loads ──
-  var _useState173 = useState(INIT_OFFERS),
-    _useState174 = _slicedToArray(_useState173, 2),
-    offers = _useState174[0],
-    setOffers = _useState174[1];
+  var _useState181 = useState(INIT_OFFERS),
+    _useState182 = _slicedToArray(_useState181, 2),
+    offers = _useState182[0],
+    setOffers = _useState182[1];
   useEffect(function () {
     if (loadedRef.current) saveOfferStatuses(offers);
   }, [offers]);
-  var _useState175 = useState(INIT_SALES),
-    _useState176 = _slicedToArray(_useState175, 2),
-    sales = _useState176[0],
-    setSales = _useState176[1];
+  var _useState183 = useState(INIT_SALES),
+    _useState184 = _slicedToArray(_useState183, 2),
+    sales = _useState184[0],
+    setSales = _useState184[1];
   useEffect(function () {
     if (loadedRef.current) supaSet("zak_sales", sales);
   }, [sales]);
-  var _useState177 = useState(function () {
+  var _useState185 = useState(function () {
       return migrateToUnifiedStock();
     }),
-    _useState178 = _slicedToArray(_useState177, 2),
-    stock = _useState178[0],
-    setStock = _useState178[1];
+    _useState186 = _slicedToArray(_useState185, 2),
+    stock = _useState186[0],
+    setStock = _useState186[1];
   useEffect(function () {
     if (loadedRef.current) supaSet("zak_stock", stock);
   }, [stock]);
@@ -14367,10 +15053,10 @@ function App() {
     _useSupabase6 = _slicedToArray(_useSupabase5, 2),
     purchases = _useSupabase6[0],
     setPurchases = _useSupabase6[1];
-  var _useState179 = useState(null),
-    _useState180 = _slicedToArray(_useState179, 2),
-    salesPrefill = _useState180[0],
-    setSalesPrefill = _useState180[1];
+  var _useState187 = useState(null),
+    _useState188 = _slicedToArray(_useState187, 2),
+    salesPrefill = _useState188[0],
+    setSalesPrefill = _useState188[1];
   var _useSupabase7 = useSupabase("zak_customers", [], loadedRef),
     _useSupabase8 = _slicedToArray(_useSupabase7, 2),
     customers = _useSupabase8[0],
@@ -14972,7 +15658,8 @@ function App() {
     stock: stock,
     setStock: setStock,
     driStock: driStock,
-    purchases: purchases
+    purchases: purchases,
+    bhamSales: bhamSales
   }), tab === "offers" && /*#__PURE__*/React.createElement(TabOffers, {
     offers: offers,
     setOffers: setOffers,
