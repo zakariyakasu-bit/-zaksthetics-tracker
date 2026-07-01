@@ -4003,7 +4003,10 @@ function TabSales(_ref15) {
       if (!a.saleDate && !b.saleDate) return 0;
       if (!a.saleDate) return 1;
       if (!b.saleDate) return -1;
-      return sortDesc ? b.saleDate.localeCompare(a.saleDate) : a.saleDate.localeCompare(b.saleDate);
+      var dateCmp = sortDesc ? b.saleDate.localeCompare(a.saleDate) : a.saleDate.localeCompare(b.saleDate);
+      if (dateCmp !== 0) return dateCmp;
+      // Tiebreak by id (Date.now()) — latest logged first
+      return sortDesc ? b.id - a.id : a.id - b.id;
     });
   }, [sales, bhamSales, purchases, sortDesc]);
 
@@ -7399,54 +7402,58 @@ function TabPurchases(_ref26) {
     _useState80 = _slicedToArray(_useState79, 2),
     orderLocation = _useState80[0],
     setOrderLocation = _useState80[1];
-  var _useState81 = useState("all"),
+  var _useState81 = useState("ordered"),
     _useState82 = _slicedToArray(_useState81, 2),
-    filterSupplier = _useState82[0],
-    setFilterSupplier = _useState82[1];
+    orderDeliveryStatus = _useState82[0],
+    setOrderDeliveryStatus = _useState82[1];
   var _useState83 = useState("all"),
     _useState84 = _slicedToArray(_useState83, 2),
-    filterStatus = _useState84[0],
-    setFilterStatus = _useState84[1];
-  var _useState85 = useState(null),
+    filterSupplier = _useState84[0],
+    setFilterSupplier = _useState84[1];
+  var _useState85 = useState("all"),
     _useState86 = _slicedToArray(_useState85, 2),
-    editPurchaseId = _useState86[0],
-    setEditPurchaseId = _useState86[1];
-  var _useState87 = useState({}),
+    filterStatus = _useState86[0],
+    setFilterStatus = _useState86[1];
+  var _useState87 = useState(null),
     _useState88 = _slicedToArray(_useState87, 2),
-    editPurchaseForm = _useState88[0],
-    setEditPurchaseForm = _useState88[1];
-  var _useState89 = useState(null),
+    editPurchaseId = _useState88[0],
+    setEditPurchaseId = _useState88[1];
+  var _useState89 = useState({}),
     _useState90 = _slicedToArray(_useState89, 2),
-    confirmDeletePurchase = _useState90[0],
-    setConfirmDeletePurchase = _useState90[1];
+    editPurchaseForm = _useState90[0],
+    setEditPurchaseForm = _useState90[1];
   var _useState91 = useState(null),
     _useState92 = _slicedToArray(_useState91, 2),
-    extractedData = _useState92[0],
-    setExtractedData = _useState92[1];
-  var _useState93 = useState([]),
+    confirmDeletePurchase = _useState92[0],
+    setConfirmDeletePurchase = _useState92[1];
+  var _useState93 = useState(null),
     _useState94 = _slicedToArray(_useState93, 2),
-    lineItems = _useState94[0],
-    setLineItems = _useState94[1];
-  var _useState95 = useState(null),
+    extractedData = _useState94[0],
+    setExtractedData = _useState94[1];
+  var _useState95 = useState([]),
     _useState96 = _slicedToArray(_useState95, 2),
-    matchedPurchase = _useState96[0],
-    setMatchedPurchase = _useState96[1];
-  var _useState97 = useState(false),
+    lineItems = _useState96[0],
+    setLineItems = _useState96[1];
+  var _useState97 = useState(null),
     _useState98 = _slicedToArray(_useState97, 2),
-    confirmMatch = _useState98[0],
-    setConfirmMatch = _useState98[1];
-  var _useState99 = useState([]),
+    matchedPurchase = _useState98[0],
+    setMatchedPurchase = _useState98[1];
+  var _useState99 = useState(false),
     _useState100 = _slicedToArray(_useState99, 2),
-    reviewItems = _useState100[0],
-    setReviewItems = _useState100[1];
-  var _useState101 = useState(""),
+    confirmMatch = _useState100[0],
+    setConfirmMatch = _useState100[1];
+  var _useState101 = useState([]),
     _useState102 = _slicedToArray(_useState101, 2),
-    invoiceText = _useState102[0],
-    setInvoiceText = _useState102[1];
-  var _useState103 = useState(null),
+    reviewItems = _useState102[0],
+    setReviewItems = _useState102[1];
+  var _useState103 = useState(""),
     _useState104 = _slicedToArray(_useState103, 2),
-    error = _useState104[0],
-    setError = _useState104[1];
+    invoiceText = _useState104[0],
+    setInvoiceText = _useState104[1];
+  var _useState105 = useState(null),
+    _useState106 = _slicedToArray(_useState105, 2),
+    error = _useState106[0],
+    setError = _useState106[1];
   var fileRef = useRef(null);
   var allPurchases = useMemo(function () {
     // Match user purchases to INIT by id OR invoiceNumber
@@ -7868,6 +7875,7 @@ function TabPurchases(_ref26) {
           qty: 1
         }]);
         setOrderDate(new Date().toISOString().slice(0, 10));
+        setOrderDeliveryStatus("ordered");
         setView("order");
       }
     }, "+ Manual Order"), /*#__PURE__*/React.createElement("button", {
@@ -7893,7 +7901,7 @@ function TabPurchases(_ref26) {
   }, "Manual Order"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "1fr 1fr",
+      gridTemplateColumns: "1fr 1fr 1fr",
       gap: 10,
       marginBottom: 12
     }
@@ -7926,7 +7934,27 @@ function TabPurchases(_ref26) {
     onChange: function onChange(e) {
       return setOrderLocation(e.target.value);
     }
-  }, /*#__PURE__*/React.createElement("option", null, "London"), /*#__PURE__*/React.createElement("option", null, "Birmingham")))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("option", null, "London"), /*#__PURE__*/React.createElement("option", null, "Birmingham"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.grey5,
+      fontSize: 10,
+      marginBottom: 3,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em"
+    }
+  }, "Delivery Status"), /*#__PURE__*/React.createElement("select", {
+    style: IS,
+    value: orderDeliveryStatus,
+    onChange: function onChange(e) {
+      return setOrderDeliveryStatus(e.target.value);
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "ordered"
+  }, "\uD83D\uDCCB Ordered"), /*#__PURE__*/React.createElement("option", {
+    value: "dispatched"
+  }, "\uD83D\uDE9A Dispatched"), /*#__PURE__*/React.createElement("option", {
+    value: "delivered"
+  }, "\u2713 Delivered")))), /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 10
     }
@@ -8180,6 +8208,7 @@ function TabPurchases(_ref26) {
         paymentStatus: "pending",
         amountPaid: 0,
         isManualOrder: true,
+        deliveryStatus: orderDeliveryStatus,
         items: purchaseItems
       };
       setPurchases(function (p) {
@@ -8955,7 +8984,7 @@ function TabPurchases(_ref26) {
   }).map(function (p, idx) {
     var _p$items2, _p$items3, _p$items4;
     var total = p.amountPaid || ((_p$items2 = p.items) === null || _p$items2 === void 0 ? void 0 : _p$items2.reduce(function (s, i) {
-      return s + i.cost;
+      return s + i.cost * (i.qty || 1);
     }, 0)) || 0;
     var isEditing = editPurchaseId === p.id;
     var isConfirmDelete = confirmDeletePurchase === p.id;
@@ -9010,12 +9039,23 @@ function TabPurchases(_ref26) {
     }, "\u2713 Verified"), /*#__PURE__*/React.createElement(Tag, {
       bg: (p.paymentStatus || "paid") === "paid" ? "rgba(34,197,94,0.15)" : "rgba(245,158,11,0.15)",
       fg: (p.paymentStatus || "paid") === "paid" ? C.green : C.amber
-    }, (p.paymentStatus || "paid") === "paid" ? "✓ Paid" : "⏳ Pending")), /*#__PURE__*/React.createElement("div", {
+    }, (p.paymentStatus || "paid") === "paid" ? "✓ Paid" : "⏳ Pending"), p.isManualOrder && p.deliveryStatus === "ordered" && /*#__PURE__*/React.createElement(Tag, {
+      bg: "rgba(245,158,11,0.15)",
+      fg: C.amber
+    }, "\uD83D\uDCCB Ordered"), p.isManualOrder && p.deliveryStatus === "dispatched" && /*#__PURE__*/React.createElement(Tag, {
+      bg: "rgba(59,130,246,0.15)",
+      fg: C.blue
+    }, "\uD83D\uDE9A Dispatched"), p.isManualOrder && p.deliveryStatus === "delivered" && /*#__PURE__*/React.createElement(Tag, {
+      bg: "rgba(34,197,94,0.15)",
+      fg: C.green
+    }, "\u2713 Delivered")), /*#__PURE__*/React.createElement("div", {
       style: {
         color: C.grey5,
         fontSize: 12
       }
-    }, ((_p$items3 = p.items) === null || _p$items3 === void 0 ? void 0 : _p$items3.length) || 0, " items \xB7 ", p.address, " \xB7 \xA3", total.toFixed(2))), /*#__PURE__*/React.createElement("div", {
+    }, ((_p$items3 = p.items) === null || _p$items3 === void 0 ? void 0 : _p$items3.reduce(function (t, i) {
+      return t + (i.qty || 1);
+    }, 0)) || 0, " items \xB7 ", p.address, " \xB7 \xA3", total.toFixed(2))), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         gap: 5,
@@ -9034,7 +9074,8 @@ function TabPurchases(_ref26) {
           paymentMethod: p.paymentMethod || "",
           amountPaid: p.amountPaid || "",
           note: p.note || "",
-          address: p.address || "London"
+          address: p.address || "London",
+          deliveryStatus: p.deliveryStatus || "delivered"
         });
       },
       style: {
@@ -9360,7 +9401,39 @@ function TabPurchases(_ref26) {
       value: "London"
     }, "London"), /*#__PURE__*/React.createElement("option", {
       value: "Birmingham"
-    }, "Birmingham"))), /*#__PURE__*/React.createElement("div", {
+    }, "Birmingham"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: C.grey5,
+        fontSize: 9,
+        marginBottom: 2,
+        textTransform: "uppercase"
+      }
+    }, "Delivery Status"), /*#__PURE__*/React.createElement("select", {
+      style: {
+        background: C.grey3,
+        border: "1px solid ".concat(C.grey3),
+        color: C.offwhite,
+        borderRadius: 2,
+        padding: "4px 6px",
+        fontSize: 11,
+        width: "100%",
+        outline: "none"
+      },
+      value: editPurchaseForm.deliveryStatus || "delivered",
+      onChange: function onChange(e) {
+        return setEditPurchaseForm(function (f) {
+          return _objectSpread(_objectSpread({}, f), {}, {
+            deliveryStatus: e.target.value
+          });
+        });
+      }
+    }, /*#__PURE__*/React.createElement("option", {
+      value: "ordered"
+    }, "\uD83D\uDCCB Ordered"), /*#__PURE__*/React.createElement("option", {
+      value: "dispatched"
+    }, "\uD83D\uDE9A Dispatched"), /*#__PURE__*/React.createElement("option", {
+      value: "delivered"
+    }, "\u2713 Delivered"))), /*#__PURE__*/React.createElement("div", {
       style: {
         gridColumn: "1/-1"
       }
@@ -9402,8 +9475,9 @@ function TabPurchases(_ref26) {
         var updated = _objectSpread(_objectSpread({}, editPurchaseForm), {}, {
           amountPaid: parseFloat(editPurchaseForm.amountPaid) || undefined
         });
+        var wasDelivered = p.deliveryStatus === "delivered";
+        var nowDelivered = updated.deliveryStatus === "delivered";
         if (isInit) {
-          // For INIT purchases, add to user purchases as an override
           setPurchases(function (prev) {
             return [].concat(_toConsumableArray(prev.filter(function (x) {
               return x.id !== p.id;
@@ -9413,6 +9487,16 @@ function TabPurchases(_ref26) {
           setPurchases(function (prev) {
             return prev.map(function (x) {
               return x.id === p.id ? _objectSpread(_objectSpread({}, x), updated) : x;
+            });
+          });
+        }
+        if (!wasDelivered && nowDelivered) {
+          setDriStock(function (prev) {
+            return prev.map(function (s) {
+              return s.purchaseId === p.id && s.status === "preorder" ? _objectSpread(_objectSpread({}, s), {}, {
+                status: "in_stock",
+                arrivedDate: new Date().toISOString().slice(0, 10)
+              }) : s;
             });
           });
         }
@@ -9481,14 +9565,21 @@ function TabPurchases(_ref26) {
           borderRadius: 3,
           padding: "5px 8px",
           display: "flex",
-          justifyContent: "space-between"
+          justifyContent: "space-between",
+          alignItems: "center"
         }
       }, /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 11,
           fontWeight: 600
         }
-      }, getItemLabel(item)), /*#__PURE__*/React.createElement("span", {
+      }, item.qty > 1 ? /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.blue,
+          fontWeight: 800,
+          marginRight: 4
+        }
+      }, item.qty, "\xD7") : null, getItemLabel(item)), /*#__PURE__*/React.createElement("span", {
         style: {
           color: C.grey5,
           fontSize: 10
@@ -9505,7 +9596,7 @@ function ChineseEditForm(_ref29) {
     setChinese = _ref29.setChinese,
     colours = _ref29.colours,
     onClose = _ref29.onClose;
-  var _useState105 = useState({
+  var _useState107 = useState({
       item: item.item || "",
       colour: item.colour || "",
       size: item.size || "",
@@ -9515,9 +9606,9 @@ function ChineseEditForm(_ref29) {
       location: item.location || "you",
       supplier: item.supplier || ""
     }),
-    _useState106 = _slicedToArray(_useState105, 2),
-    form = _useState106[0],
-    setForm = _useState106[1];
+    _useState108 = _slicedToArray(_useState107, 2),
+    form = _useState108[0],
+    setForm = _useState108[1];
   function save() {
     setChinese(function (p) {
       return p.map(function (c) {
@@ -9839,14 +9930,14 @@ function ChineseSaleBtn(_ref30) {
   var _item$salePrice;
   var item = _ref30.item,
     setChinese = _ref30.setChinese;
-  var _useState107 = useState(false),
-    _useState108 = _slicedToArray(_useState107, 2),
-    show = _useState108[0],
-    setShow = _useState108[1];
-  var _useState109 = useState(""),
+  var _useState109 = useState(false),
     _useState110 = _slicedToArray(_useState109, 2),
-    price = _useState110[0],
-    setPrice = _useState110[1];
+    show = _useState110[0],
+    setShow = _useState110[1];
+  var _useState111 = useState(""),
+    _useState112 = _slicedToArray(_useState111, 2),
+    price = _useState112[0],
+    setPrice = _useState112[1];
   if (item.location === "sold") return /*#__PURE__*/React.createElement(Tag, {
     bg: "rgba(34,197,94,0.15)",
     fg: C.green
@@ -9947,47 +10038,47 @@ function TabBirmingham(_ref31) {
     setStock = _ref31.setStock,
     sales = _ref31.sales,
     setSales = _ref31.setSales;
-  var _useState111 = useState("overview"),
-    _useState112 = _slicedToArray(_useState111, 2),
-    subTab = _useState112[0],
-    setSubTab = _useState112[1];
-  var _useState113 = useState(null),
+  var _useState113 = useState("overview"),
     _useState114 = _slicedToArray(_useState113, 2),
-    confirmRemoveBham = _useState114[0],
-    setConfirmRemoveBham = _useState114[1];
-  var _useState115 = useState(false),
+    subTab = _useState114[0],
+    setSubTab = _useState114[1];
+  var _useState115 = useState(null),
     _useState116 = _slicedToArray(_useState115, 2),
-    showAddStock = _useState116[0],
-    setShowAddStock = _useState116[1];
-  var _useState117 = useState({
+    confirmRemoveBham = _useState116[0],
+    setConfirmRemoveBham = _useState116[1];
+  var _useState117 = useState(false),
+    _useState118 = _slicedToArray(_useState117, 2),
+    showAddStock = _useState118[0],
+    setShowAddStock = _useState118[1];
+  var _useState119 = useState({
       colour: "White",
       size: "M",
       qty: "1",
       status: "in_stock"
     }),
-    _useState118 = _slicedToArray(_useState117, 2),
-    addStockForm = _useState118[0],
-    setAddStockForm = _useState118[1];
-  var _useState119 = useState(null),
     _useState120 = _slicedToArray(_useState119, 2),
-    editChineseId = _useState120[0],
-    setEditChineseId = _useState120[1];
+    addStockForm = _useState120[0],
+    setAddStockForm = _useState120[1];
   var _useState121 = useState(null),
     _useState122 = _slicedToArray(_useState121, 2),
-    confirmDeleteChinese = _useState122[0],
-    setConfirmDeleteChinese = _useState122[1];
-  var _useState123 = useState("all"),
+    editChineseId = _useState122[0],
+    setEditChineseId = _useState122[1];
+  var _useState123 = useState(null),
     _useState124 = _slicedToArray(_useState123, 2),
-    filterTypeBham = _useState124[0],
-    setFilterTypeBham = _useState124[1];
+    confirmDeleteChinese = _useState124[0],
+    setConfirmDeleteChinese = _useState124[1];
   var _useState125 = useState("all"),
     _useState126 = _slicedToArray(_useState125, 2),
-    filterSupplierBham = _useState126[0],
-    setFilterSupplierBham = _useState126[1];
+    filterTypeBham = _useState126[0],
+    setFilterTypeBham = _useState126[1];
   var _useState127 = useState("all"),
     _useState128 = _slicedToArray(_useState127, 2),
-    filterColourBham = _useState128[0],
-    setFilterColourBham = _useState128[1];
+    filterSupplierBham = _useState128[0],
+    setFilterSupplierBham = _useState128[1];
+  var _useState129 = useState("all"),
+    _useState130 = _slicedToArray(_useState129, 2),
+    filterColourBham = _useState130[0],
+    setFilterColourBham = _useState130[1];
   function removeOneBhamStock(colour, size, status) {
     var removed = false;
     setDriStock(function (p) {
@@ -10001,10 +10092,10 @@ function TabBirmingham(_ref31) {
     });
     setConfirmRemoveBham(null);
   }
-  var _useState129 = useState(false),
-    _useState130 = _slicedToArray(_useState129, 2),
-    bhamSyncing = _useState130[0],
-    setBhamSyncing = _useState130[1];
+  var _useState131 = useState(false),
+    _useState132 = _slicedToArray(_useState131, 2),
+    bhamSyncing = _useState132[0],
+    setBhamSyncing = _useState132[1];
   function syncBhamStock() {
     setBhamSyncing(true);
     // Count completed+pending+shipped Birmingham drifit sales
@@ -11533,15 +11624,15 @@ function TabStock(_ref45) {
     bhamSales = _ref45.bhamSales,
     stock = _ref45.stock,
     setStock = _ref45.setStock;
-  var _useState131 = useState("overview"),
-    _useState132 = _slicedToArray(_useState131, 2),
-    subTab = _useState132[0],
-    setSubTab = _useState132[1];
-  var _useState133 = useState(false),
+  var _useState133 = useState("overview"),
     _useState134 = _slicedToArray(_useState133, 2),
-    showAddStock = _useState134[0],
-    setShowAddStock = _useState134[1];
-  var _useState135 = useState({
+    subTab = _useState134[0],
+    setSubTab = _useState134[1];
+  var _useState135 = useState(false),
+    _useState136 = _slicedToArray(_useState135, 2),
+    showAddStock = _useState136[0],
+    setShowAddStock = _useState136[1];
+  var _useState137 = useState({
       colour: "White",
       size: "M",
       topSize: "M",
@@ -11550,41 +11641,41 @@ function TabStock(_ref45) {
       qty: "1",
       status: "in_stock"
     }),
-    _useState136 = _slicedToArray(_useState135, 2),
-    addStockForm = _useState136[0],
-    setAddStockForm = _useState136[1];
-  var _useState137 = useState(null),
     _useState138 = _slicedToArray(_useState137, 2),
-    confirmRemove = _useState138[0],
-    setConfirmRemove = _useState138[1];
+    addStockForm = _useState138[0],
+    setAddStockForm = _useState138[1];
   var _useState139 = useState(null),
     _useState140 = _slicedToArray(_useState139, 2),
-    editPurchaseId = _useState140[0],
-    setEditPurchaseId = _useState140[1];
-  var _useState141 = useState({}),
+    confirmRemove = _useState140[0],
+    setConfirmRemove = _useState140[1];
+  var _useState141 = useState(null),
     _useState142 = _slicedToArray(_useState141, 2),
-    editPurchaseForm = _useState142[0],
-    setEditPurchaseForm = _useState142[1];
-  var _useState143 = useState(null),
+    editPurchaseId = _useState142[0],
+    setEditPurchaseId = _useState142[1];
+  var _useState143 = useState({}),
     _useState144 = _slicedToArray(_useState143, 2),
-    confirmDeletePurchase = _useState144[0],
-    setConfirmDeletePurchase = _useState144[1];
+    editPurchaseForm = _useState144[0],
+    setEditPurchaseForm = _useState144[1];
   var _useState145 = useState(null),
     _useState146 = _slicedToArray(_useState145, 2),
-    editChineseId = _useState146[0],
-    setEditChineseId = _useState146[1];
+    confirmDeletePurchase = _useState146[0],
+    setConfirmDeletePurchase = _useState146[1];
   var _useState147 = useState(null),
     _useState148 = _slicedToArray(_useState147, 2),
-    confirmDeleteChinese = _useState148[0],
-    setConfirmDeleteChinese = _useState148[1];
-  var _useState149 = useState("all"),
+    editChineseId = _useState148[0],
+    setEditChineseId = _useState148[1];
+  var _useState149 = useState(null),
     _useState150 = _slicedToArray(_useState149, 2),
-    filterType = _useState150[0],
-    setFilterType = _useState150[1];
-  var _useState151 = useState(false),
+    confirmDeleteChinese = _useState150[0],
+    setConfirmDeleteChinese = _useState150[1];
+  var _useState151 = useState("all"),
     _useState152 = _slicedToArray(_useState151, 2),
-    syncing = _useState152[0],
-    setSyncing = _useState152[1];
+    filterType = _useState152[0],
+    setFilterType = _useState152[1];
+  var _useState153 = useState(false),
+    _useState154 = _slicedToArray(_useState153, 2),
+    syncing = _useState154[0],
+    setSyncing = _useState154[1];
   function syncStock() {
     setSyncing(true);
     var completedSales = (sales || []).filter(function (s) {
@@ -11635,14 +11726,14 @@ function TabStock(_ref45) {
       return setSyncing(false);
     }, 600);
   }
-  var _useState153 = useState("all"),
-    _useState154 = _slicedToArray(_useState153, 2),
-    filterSupplierStock = _useState154[0],
-    setFilterSupplierStock = _useState154[1];
   var _useState155 = useState("all"),
     _useState156 = _slicedToArray(_useState155, 2),
-    filterColourStock = _useState156[0],
-    setFilterColourStock = _useState156[1];
+    filterSupplierStock = _useState156[0],
+    setFilterSupplierStock = _useState156[1];
+  var _useState157 = useState("all"),
+    _useState158 = _slicedToArray(_useState157, 2),
+    filterColourStock = _useState158[0],
+    setFilterColourStock = _useState158[1];
   function removeOneStock(colour, size, status) {
     var removed = false;
     setDriStock(function (p) {
@@ -13601,11 +13692,11 @@ function TabStock(_ref45) {
 function TabCalc(_ref73) {
   var chinese = _ref73.chinese,
     setChinese = _ref73.setChinese;
-  var _useState157 = useState(false),
-    _useState158 = _slicedToArray(_useState157, 2),
-    show = _useState158[0],
-    setShow = _useState158[1];
-  var _useState159 = useState({
+  var _useState159 = useState(false),
+    _useState160 = _slicedToArray(_useState159, 2),
+    show = _useState160[0],
+    setShow = _useState160[1];
+  var _useState161 = useState({
       item: "",
       colour: "",
       size: "",
@@ -13616,9 +13707,9 @@ function TabCalc(_ref73) {
       wiseRate: "0.1902",
       note: ""
     }),
-    _useState160 = _slicedToArray(_useState159, 2),
-    form = _useState160[0],
-    setForm = _useState160[1];
+    _useState162 = _slicedToArray(_useState161, 2),
+    form = _useState162[0],
+    setForm = _useState162[1];
   function add() {
     if (!form.item || !form.costMYR) return;
     var total = parseFloat(form.costMYR) + (parseFloat(form.shippingMYR) || 0) + (parseFloat(form.fixedMYR) || 0);
@@ -14196,10 +14287,10 @@ function saveOfferStatuses(offers) {
 // Without this gate, the hook writes INIT defaults to Supabase on first render,
 // overwriting real data before the load finishes.
 function useSupabase(key, initialValue, readyRef) {
-  var _useState161 = useState(initialValue),
-    _useState162 = _slicedToArray(_useState161, 2),
-    state = _useState162[0],
-    setState = _useState162[1];
+  var _useState163 = useState(initialValue),
+    _useState164 = _slicedToArray(_useState163, 2),
+    state = _useState164[0],
+    setState = _useState164[1];
   var isFirst = useRef(true);
   useEffect(function () {
     // Skip the very first render (initial value) and skip if not loaded yet
@@ -14221,45 +14312,45 @@ function useSupabase(key, initialValue, readyRef) {
 // ── ROOT ───────────────────────────────────────────────────────
 function App() {
   var importRef = useRef(null);
-  var _useState163 = useState(null),
-    _useState164 = _slicedToArray(_useState163, 2),
-    confirmImport = _useState164[0],
-    setConfirmImport = _useState164[1];
-  var _useState165 = useState(false),
+  var _useState165 = useState(null),
     _useState166 = _slicedToArray(_useState165, 2),
-    confirmReset = _useState166[0],
-    setConfirmReset = _useState166[1];
-  var _useState167 = useState(true),
+    confirmImport = _useState166[0],
+    setConfirmImport = _useState166[1];
+  var _useState167 = useState(false),
     _useState168 = _slicedToArray(_useState167, 2),
-    loading = _useState168[0],
-    setLoading = _useState168[1]; // true while fetching from Supabase
-
-  var _useState169 = useState("sales"),
+    confirmReset = _useState168[0],
+    setConfirmReset = _useState168[1];
+  var _useState169 = useState(true),
     _useState170 = _slicedToArray(_useState169, 2),
-    tab = _useState170[0],
-    setTab = _useState170[1];
+    loading = _useState170[0],
+    setLoading = _useState170[1]; // true while fetching from Supabase
+
+  var _useState171 = useState("sales"),
+    _useState172 = _slicedToArray(_useState171, 2),
+    tab = _useState172[0],
+    setTab = _useState172[1];
 
   // ── All state starts with INIT defaults; overwritten once Supabase loads ──
-  var _useState171 = useState(INIT_OFFERS),
-    _useState172 = _slicedToArray(_useState171, 2),
-    offers = _useState172[0],
-    setOffers = _useState172[1];
+  var _useState173 = useState(INIT_OFFERS),
+    _useState174 = _slicedToArray(_useState173, 2),
+    offers = _useState174[0],
+    setOffers = _useState174[1];
   useEffect(function () {
     if (loadedRef.current) saveOfferStatuses(offers);
   }, [offers]);
-  var _useState173 = useState(INIT_SALES),
-    _useState174 = _slicedToArray(_useState173, 2),
-    sales = _useState174[0],
-    setSales = _useState174[1];
+  var _useState175 = useState(INIT_SALES),
+    _useState176 = _slicedToArray(_useState175, 2),
+    sales = _useState176[0],
+    setSales = _useState176[1];
   useEffect(function () {
     if (loadedRef.current) supaSet("zak_sales", sales);
   }, [sales]);
-  var _useState175 = useState(function () {
+  var _useState177 = useState(function () {
       return migrateToUnifiedStock();
     }),
-    _useState176 = _slicedToArray(_useState175, 2),
-    stock = _useState176[0],
-    setStock = _useState176[1];
+    _useState178 = _slicedToArray(_useState177, 2),
+    stock = _useState178[0],
+    setStock = _useState178[1];
   useEffect(function () {
     if (loadedRef.current) supaSet("zak_stock", stock);
   }, [stock]);
@@ -14276,10 +14367,10 @@ function App() {
     _useSupabase6 = _slicedToArray(_useSupabase5, 2),
     purchases = _useSupabase6[0],
     setPurchases = _useSupabase6[1];
-  var _useState177 = useState(null),
-    _useState178 = _slicedToArray(_useState177, 2),
-    salesPrefill = _useState178[0],
-    setSalesPrefill = _useState178[1];
+  var _useState179 = useState(null),
+    _useState180 = _slicedToArray(_useState179, 2),
+    salesPrefill = _useState180[0],
+    setSalesPrefill = _useState180[1];
   var _useSupabase7 = useSupabase("zak_customers", [], loadedRef),
     _useSupabase8 = _slicedToArray(_useSupabase7, 2),
     customers = _useSupabase8[0],
