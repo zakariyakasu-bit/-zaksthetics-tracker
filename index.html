@@ -2290,13 +2290,203 @@ function statusLbl(s) {
 }
 
 // ── TAB: Dashboard ─────────────────────────────────────────────
-function TabDashboard(_ref4) {
-  var sales = _ref4.sales,
-    offers = _ref4.offers,
-    chinese = _ref4.chinese,
-    driStock = _ref4.driStock,
-    purchases = _ref4.purchases,
-    bhamSales = _ref4.bhamSales;
+function FilterBar(_ref4) {
+  var f = _ref4.f,
+    setF = _ref4.setF,
+    label = _ref4.label,
+    sales = _ref4.sales;
+  var platforms = ["all"].concat(_toConsumableArray(new Set(sales.map(function (s) {
+    return s.platform;
+  }).filter(Boolean))));
+  var colours = ["all"].concat(_toConsumableArray(_toConsumableArray(new Set(sales.map(function (s) {
+    return s.colour;
+  }).filter(Boolean))).sort()));
+  var sizes = ["all"].concat(SIZES);
+  var items = ["all", "Nike Park Senior Set", "Park VII Jersey", "Park III Shorts", "Challenger Shorts", "Miler Top"];
+  var today = new Date().toISOString().slice(0, 10);
+  var thisMonth = today.slice(0, 7);
+  var lastMonth = new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 7);
+  var presets = [{
+    label: "This Month",
+    from: thisMonth + "-01",
+    to: today
+  }, {
+    label: "Last Month",
+    from: lastMonth + "-01",
+    to: lastMonth + "-31"
+  }, {
+    label: "Last 3 Months",
+    from: new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString().slice(0, 10),
+    to: today
+  }, {
+    label: "All Time",
+    from: "",
+    to: ""
+  }];
+  function applyPreset(p) {
+    var pr = presets.find(function (x) {
+      return x.label === p;
+    });
+    setF(function (prev) {
+      return _objectSpread(_objectSpread({}, prev), {}, {
+        preset: p,
+        from: (pr === null || pr === void 0 ? void 0 : pr.from) || "",
+        to: (pr === null || pr === void 0 ? void 0 : pr.to) || ""
+      });
+    });
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.grey1,
+      border: "1px solid ".concat(C.grey2),
+      borderRadius: 4,
+      padding: 12,
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 11,
+      color: C.grey5,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 8
+    }
+  }, label, " Filters"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 5,
+      flexWrap: "wrap",
+      marginBottom: 8
+    }
+  }, presets.map(function (p) {
+    return /*#__PURE__*/React.createElement("button", {
+      key: p.label,
+      onClick: function onClick() {
+        return applyPreset(p.label);
+      },
+      style: {
+        background: f.preset === p.label ? "rgba(255,255,255,0.12)" : "transparent",
+        border: "1px solid ".concat(f.preset === p.label ? C.offwhite : C.grey3),
+        color: f.preset === p.label ? C.offwhite : C.grey5,
+        borderRadius: 2,
+        padding: "3px 8px",
+        fontSize: 9,
+        fontWeight: 700,
+        cursor: "pointer",
+        textTransform: "uppercase"
+      }
+    }, p.label);
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr",
+      gap: 6
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.grey5,
+      fontSize: 9,
+      marginBottom: 2,
+      textTransform: "uppercase"
+    }
+  }, "From"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    style: {
+      background: C.grey2,
+      border: "1px solid ".concat(C.grey3),
+      color: C.offwhite,
+      borderRadius: 2,
+      padding: "4px 6px",
+      fontSize: 11,
+      width: "100%",
+      outline: "none",
+      boxSizing: "border-box"
+    },
+    value: f.from,
+    onChange: function onChange(e) {
+      return setF(function (p) {
+        return _objectSpread(_objectSpread({}, p), {}, {
+          from: e.target.value,
+          preset: "Custom"
+        });
+      });
+    }
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.grey5,
+      fontSize: 9,
+      marginBottom: 2,
+      textTransform: "uppercase"
+    }
+  }, "To"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    style: {
+      background: C.grey2,
+      border: "1px solid ".concat(C.grey3),
+      color: C.offwhite,
+      borderRadius: 2,
+      padding: "4px 6px",
+      fontSize: 11,
+      width: "100%",
+      outline: "none",
+      boxSizing: "border-box"
+    },
+    value: f.to,
+    onChange: function onChange(e) {
+      return setF(function (p) {
+        return _objectSpread(_objectSpread({}, p), {}, {
+          to: e.target.value,
+          preset: "Custom"
+        });
+      });
+    }
+  })), [["Platform", platforms, "platform"], ["Colour", colours, "colour"], ["Size", sizes, "size"], ["Item", items, "item"]].map(function (_ref5) {
+    var _ref6 = _slicedToArray(_ref5, 3),
+      lbl = _ref6[0],
+      opts = _ref6[1],
+      key = _ref6[2];
+    return /*#__PURE__*/React.createElement("div", {
+      key: key
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: C.grey5,
+        fontSize: 9,
+        marginBottom: 2,
+        textTransform: "uppercase"
+      }
+    }, lbl), /*#__PURE__*/React.createElement("select", {
+      style: {
+        background: C.grey2,
+        border: "1px solid ".concat(C.grey3),
+        color: C.offwhite,
+        borderRadius: 2,
+        padding: "4px 6px",
+        fontSize: 11,
+        width: "100%",
+        outline: "none"
+      },
+      value: f[key],
+      onChange: function onChange(e) {
+        return setF(function (p) {
+          return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, key, e.target.value));
+        });
+      }
+    }, opts.map(function (o) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: o,
+        value: o
+      }, o === "all" ? "All " + lbl + "s" : o);
+    })));
+  })));
+}
+function TabDashboard(_ref7) {
+  var sales = _ref7.sales,
+    offers = _ref7.offers,
+    chinese = _ref7.chinese,
+    driStock = _ref7.driStock,
+    purchases = _ref7.purchases,
+    bhamSales = _ref7.bhamSales;
   var allPurchases = [].concat(_toConsumableArray(INIT_PURCHASES.filter(function (ip) {
     return !(purchases || []).some(function (p) {
       return p.id === ip.id;
@@ -2314,32 +2504,6 @@ function TabDashboard(_ref4) {
   })));
 
   // ── Shared helpers ──────────────────────────────────────────────
-  var MONTHS = _toConsumableArray(new Set(sales.map(function (s) {
-    var _s$saleDate;
-    return (_s$saleDate = s.saleDate) === null || _s$saleDate === void 0 ? void 0 : _s$saleDate.slice(0, 7);
-  }).filter(Boolean))).sort().reverse();
-  var today = new Date().toISOString().slice(0, 10);
-  var thisMonth = today.slice(0, 7);
-  var lastMonth = new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 7);
-  function getPresets() {
-    return [{
-      label: "This Month",
-      from: thisMonth + "-01",
-      to: today
-    }, {
-      label: "Last Month",
-      from: lastMonth + "-01",
-      to: lastMonth + "-31"
-    }, {
-      label: "Last 3 Months",
-      from: new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString().slice(0, 10),
-      to: today
-    }, {
-      label: "All Time",
-      from: "",
-      to: ""
-    }];
-  }
   function mkFilterState() {
     return {
       preset: "All Time",
@@ -2361,175 +2525,6 @@ function TabDashboard(_ref4) {
       if (f.item !== "all" && (s.itemName || "Nike Park Senior Set") !== f.item) return false;
       return true;
     });
-  }
-  function FilterBar(_ref5) {
-    var f = _ref5.f,
-      setF = _ref5.setF,
-      label = _ref5.label;
-    var platforms = ["all"].concat(_toConsumableArray(new Set(sales.map(function (s) {
-      return s.platform;
-    }).filter(Boolean))));
-    var colours = ["all"].concat(_toConsumableArray(new Set(sales.map(function (s) {
-      return s.colour;
-    }).filter(Boolean)).sort()));
-    var sizes = ["all"].concat(SIZES);
-    var items = ["all", "Nike Park Senior Set", "Park VII Jersey", "Park III Shorts", "Challenger Shorts", "Miler Top"];
-    function applyPreset(p) {
-      var pr = getPresets().find(function (x) {
-        return x.label === p;
-      });
-      setF(function (prev) {
-        return _objectSpread(_objectSpread({}, prev), {}, {
-          preset: p,
-          from: (pr === null || pr === void 0 ? void 0 : pr.from) || "",
-          to: (pr === null || pr === void 0 ? void 0 : pr.to) || ""
-        });
-      });
-    }
-    return /*#__PURE__*/React.createElement("div", {
-      style: {
-        background: C.grey1,
-        border: "1px solid ".concat(C.grey2),
-        borderRadius: 4,
-        padding: 12,
-        marginBottom: 12
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontWeight: 700,
-        fontSize: 11,
-        color: C.grey5,
-        textTransform: "uppercase",
-        letterSpacing: "0.06em",
-        marginBottom: 8
-      }
-    }, label, " Filters"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 5,
-        flexWrap: "wrap",
-        marginBottom: 8
-      }
-    }, getPresets().map(function (p) {
-      return /*#__PURE__*/React.createElement("button", {
-        key: p.label,
-        onClick: function onClick() {
-          return applyPreset(p.label);
-        },
-        style: {
-          background: f.preset === p.label ? "rgba(255,255,255,0.12)" : "transparent",
-          border: "1px solid ".concat(f.preset === p.label ? C.offwhite : C.grey3),
-          color: f.preset === p.label ? C.offwhite : C.grey5,
-          borderRadius: 2,
-          padding: "3px 8px",
-          fontSize: 9,
-          fontWeight: 700,
-          cursor: "pointer",
-          textTransform: "uppercase"
-        }
-      }, p.label);
-    })), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr",
-        gap: 6
-      }
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        color: C.grey5,
-        fontSize: 9,
-        marginBottom: 2,
-        textTransform: "uppercase"
-      }
-    }, "From"), /*#__PURE__*/React.createElement("input", {
-      type: "date",
-      style: {
-        background: C.grey2,
-        border: "1px solid ".concat(C.grey3),
-        color: C.offwhite,
-        borderRadius: 2,
-        padding: "4px 6px",
-        fontSize: 11,
-        width: "100%",
-        outline: "none",
-        boxSizing: "border-box"
-      },
-      value: f.from,
-      onChange: function onChange(e) {
-        return setF(function (p) {
-          return _objectSpread(_objectSpread({}, p), {}, {
-            from: e.target.value,
-            preset: "Custom"
-          });
-        });
-      }
-    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        color: C.grey5,
-        fontSize: 9,
-        marginBottom: 2,
-        textTransform: "uppercase"
-      }
-    }, "To"), /*#__PURE__*/React.createElement("input", {
-      type: "date",
-      style: {
-        background: C.grey2,
-        border: "1px solid ".concat(C.grey3),
-        color: C.offwhite,
-        borderRadius: 2,
-        padding: "4px 6px",
-        fontSize: 11,
-        width: "100%",
-        outline: "none",
-        boxSizing: "border-box"
-      },
-      value: f.to,
-      onChange: function onChange(e) {
-        return setF(function (p) {
-          return _objectSpread(_objectSpread({}, p), {}, {
-            to: e.target.value,
-            preset: "Custom"
-          });
-        });
-      }
-    })), [["Platform", platforms, "platform"], ["Colour", colours, "colour"], ["Size", sizes, "size"], ["Item", items, "item"]].map(function (_ref6) {
-      var _ref7 = _slicedToArray(_ref6, 3),
-        lbl = _ref7[0],
-        opts = _ref7[1],
-        key = _ref7[2];
-      return /*#__PURE__*/React.createElement("div", {
-        key: key
-      }, /*#__PURE__*/React.createElement("div", {
-        style: {
-          color: C.grey5,
-          fontSize: 9,
-          marginBottom: 2,
-          textTransform: "uppercase"
-        }
-      }, lbl), /*#__PURE__*/React.createElement("select", {
-        style: {
-          background: C.grey2,
-          border: "1px solid ".concat(C.grey3),
-          color: C.offwhite,
-          borderRadius: 2,
-          padding: "4px 6px",
-          fontSize: 11,
-          width: "100%",
-          outline: "none"
-        },
-        value: f[key],
-        onChange: function onChange(e) {
-          return setF(function (p) {
-            return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, key, e.target.value));
-          });
-        }
-      }, opts.map(function (o) {
-        return /*#__PURE__*/React.createElement("option", {
-          key: o,
-          value: o
-        }, o === "all" ? "All " + lbl + "s" : o);
-      })));
-    })));
   }
 
   // ── Section states ──────────────────────────────────────────────
@@ -2699,7 +2694,8 @@ function TabDashboard(_ref4) {
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SHdr, null, "Profit & Loss"), /*#__PURE__*/React.createElement(FilterBar, {
     f: plFilter,
     setF: setPlFilter,
-    label: "P&L"
+    label: "P&L",
+    sales: sales
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
@@ -2745,7 +2741,8 @@ function TabDashboard(_ref4) {
   })), /*#__PURE__*/React.createElement(SHdr, null, "Sales"), /*#__PURE__*/React.createElement(FilterBar, {
     f: slFilter,
     setF: setSlFilter,
-    label: "Sales"
+    label: "Sales",
+    sales: sales
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
@@ -2834,7 +2831,8 @@ function TabDashboard(_ref4) {
   }, "\xA3", slAvg.toFixed(2)))), /*#__PURE__*/React.createElement(SHdr, null, "Purchases"), /*#__PURE__*/React.createElement(FilterBar, {
     f: prFilter,
     setF: setPrFilter,
-    label: "Purchases"
+    label: "Purchases",
+    sales: sales
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
