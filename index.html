@@ -2542,20 +2542,14 @@ function TabDashboard(_ref7) {
     setPrFilter = _useState6[1];
 
   // ── P&L ─────────────────────────────────────────────────────────
-  var bundleCostMapDB = {};
-  sales.forEach(function (s) {
-    if (s.bundleId) {
-      var c = s.costOverride || getItemFromColour(s.colour, s.itemName).cost || SET_COST;
-      bundleCostMapDB[s.bundleId] = (bundleCostMapDB[s.bundleId] || 0) + c;
-    }
-  });
   var enrichSale = function enrichSale(s) {
     var p = allPurchases.find(function (x) {
       return x.id === s.purchaseId;
     });
     var d = p ? p.delivery / p.items.length : 0;
     var itemCost = s.costOverride || getItemFromColour(s.colour, s.itemName).cost || SET_COST;
-    var cost = s.bundleId ? s.salePrice > 0 ? bundleCostMapDB[s.bundleId] || itemCost : 0 : itemCost;
+    var pairedCost = s.pairedPiece ? getItemFromColour(s.pairedPiece.colour || s.colour, s.pairedPiece.itemName).cost : 0;
+    var cost = itemCost + pairedCost;
     return _objectSpread(_objectSpread({}, s), {}, {
       cost: cost,
       profit: s.salePrice - cost - d,
@@ -3309,7 +3303,8 @@ function TabOffers(_ref12) {
             itemName: k,
             colour: firstColour,
             diffSizes: false,
-            shortsSize: p.size
+            shortsSize: p.size,
+            pairedPiece: null
           });
         });
       },
@@ -4410,6 +4405,7 @@ function TabSales(_ref20) {
       shortsSize: "M",
       diffSizes: false,
       salePrice: "",
+      pairedPiece: null,
       costOverride: "",
       platform: "Vinted",
       expressDelivery: false,
@@ -4466,21 +4462,15 @@ function TabSales(_ref20) {
   var allSales = useMemo(function () {
     // Enrich INIT/user sales
     // Pre-compute bundle costs: for each bundleId, sum all item costs
-    var bundleCostMap = {};
-    sales.forEach(function (s) {
-      if (s.bundleId) {
-        var c = s.costOverride || getItemFromColour(s.colour, s.itemName).cost || SET_COST;
-        bundleCostMap[s.bundleId] = (bundleCostMap[s.bundleId] || 0) + c;
-      }
-    });
     var mainSales = sales.map(function (s) {
       var p = [].concat(INIT_PURCHASES, _toConsumableArray(purchases)).find(function (x) {
         return x.id === s.purchaseId;
       });
       var d = p ? p.delivery / p.items.length : 0;
-      // Use item-specific cost; bundles put total cost on first line (salePrice>0), zero on extras
       var itemCost = s.costOverride || getItemFromColour(s.colour, s.itemName).cost || SET_COST;
-      var cost = s.bundleId ? s.salePrice > 0 ? bundleCostMap[s.bundleId] : 0 : itemCost;
+      // Add paired piece cost (Jersey + Shorts combo on one record)
+      var pairedCost = s.pairedPiece ? getItemFromColour(s.pairedPiece.colour || s.colour, s.pairedPiece.itemName).cost : 0;
+      var cost = itemCost + pairedCost;
       var loc = s.platform === "Birms" ? "birmingham" : "london";
       return _objectSpread(_objectSpread({}, s), {}, {
         delShare: d,
@@ -4621,45 +4611,48 @@ function TabSales(_ref20) {
     var loc = form.platform === "Birms" ? "birmingham" : "london";
     var now = Date.now();
     var baseDate = form.saleDate || new Date().toISOString().slice(0, 10);
-    // Build all sales — first line from main form, extra lines from saleLines
-    var allLines = [{
-      col: col,
+    // Main line
+    var mainLine = {
+      id: now,
+      itemType: form.itemType,
+      colour: col,
       size: form.size,
       itemName: isDrifit ? form.itemName || getItemFromColour(col).itemName : form.itemName || undefined,
+      topSize: isDrifit && form.diffSizes && form.itemName === "Nike Park Senior Set" ? form.size : undefined,
       shortsSize: isDrifit && form.diffSizes && form.itemName === "Nike Park Senior Set" ? form.shortsSize : undefined,
-      topSize: isDrifit && form.diffSizes && form.itemName === "Nike Park Senior Set" ? form.size : undefined
-    }].concat(_toConsumableArray(saleLines.map(function (l) {
+      pairedPiece: form.pairedPiece || undefined,
+      username: form.username,
+      platform: form.platform,
+      expressDelivery: form.expressDelivery,
+      status: form.status,
+      location: loc,
+      saleDate: baseDate,
+      salePrice: parseFloat(form.salePrice) || 0,
+      costOverride: isDrifit ? undefined : parseFloat(form.costOverride) || undefined,
+      purchaseId: null
+    };
+    // Extra lines — each fully independent with own price
+    var extraLines = saleLines.map(function (l, idx) {
       return {
-        col: l.colour.trim(),
+        id: now + idx + 1,
+        itemType: "drifit",
+        colour: l.colour.trim(),
         size: l.size,
-        itemName: l.itemName
-      };
-    })));
-    var newSales = allLines.map(function (line, idx) {
-      return {
-        id: now + idx,
-        itemType: form.itemType,
-        colour: line.col,
-        size: line.size,
-        itemName: isDrifit ? line.itemName : form.itemName || undefined,
-        topSize: line.topSize || undefined,
-        shortsSize: line.shortsSize || undefined,
+        itemName: l.itemName,
+        pairedPiece: l.pairedPiece || undefined,
         username: form.username,
         platform: form.platform,
         expressDelivery: form.expressDelivery,
         status: form.status,
         location: loc,
         saleDate: baseDate,
-        salePrice: idx === 0 ? parseFloat(form.salePrice) : 0,
-        // full price on first line, 0 on extras (bundled)
-        costOverride: isDrifit ? undefined : parseFloat(form.costOverride) || undefined,
-        purchaseId: null,
-        bundleId: allLines.length > 1 ? now : undefined // link bundled items
+        salePrice: parseFloat(l.salePrice) || 0,
+        purchaseId: null
       };
     });
     if (!isDrifit && form.externalId) syncExternalOnLog(form.externalId);
     setSales(function (p) {
-      return [].concat(_toConsumableArray(p), _toConsumableArray(newSales));
+      return [].concat(_toConsumableArray(p), [mainLine], _toConsumableArray(extraLines));
     });
     setForm({
       itemType: "drifit",
@@ -4671,6 +4664,7 @@ function TabSales(_ref20) {
       shortsSize: "M",
       diffSizes: false,
       salePrice: "",
+      pairedPiece: null,
       costOverride: "",
       platform: "Vinted",
       expressDelivery: false,
@@ -4738,7 +4732,8 @@ function TabSales(_ref20) {
       dateCompleted: s.dateCompleted || "",
       topSize: s.topSize || s.size,
       shortsSize: s.shortsSize || s.size,
-      diffSizes: hasDiffSizes
+      diffSizes: hasDiffSizes,
+      pairedPiece: s.pairedPiece || null
     });
     setEditLines([]);
   }
@@ -4753,22 +4748,23 @@ function TabSales(_ref20) {
     };
     if (editLines.length > 0) {
       var now = Date.now();
-      var bundleId = now;
       var origSale = sales.find(function (s) {
         return s.id === id;
       });
       var newLines = [_objectSpread(_objectSpread(_objectSpread(_objectSpread({}, origSale), editForm), extra), {}, {
         id: now,
         salePrice: parseFloat(editForm.salePrice) || (origSale === null || origSale === void 0 ? void 0 : origSale.salePrice) || 0,
-        bundleId: bundleId
+        pairedPiece: editForm.pairedPiece || undefined,
+        bundleId: undefined
       })].concat(_toConsumableArray(editLines.map(function (line, idx) {
         return _objectSpread(_objectSpread({}, origSale), {}, {
           id: now + idx + 1,
           itemName: line.itemName,
           colour: line.colour,
           size: line.size,
-          salePrice: 0,
-          bundleId: bundleId,
+          salePrice: parseFloat(line.salePrice) || 0,
+          pairedPiece: line.pairedPiece || undefined,
+          bundleId: undefined,
           topSize: undefined,
           shortsSize: undefined,
           note: undefined
@@ -4783,6 +4779,7 @@ function TabSales(_ref20) {
       setSales(function (p) {
         return p.map(function (s) {
           return s.id === id ? _objectSpread(_objectSpread(_objectSpread(_objectSpread({}, s), editForm), extra), {}, {
+            pairedPiece: editForm.pairedPiece || undefined,
             salePrice: parseFloat(editForm.salePrice) || s.salePrice
           }) : s;
         });
@@ -5162,6 +5159,56 @@ function TabSales(_ref20) {
     return /*#__PURE__*/React.createElement("option", {
       key: s
     }, s);
+  }))), (form.itemName === "Park VII Jersey" || form.itemName === "Park III Shorts") && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.grey5,
+      fontSize: 10,
+      marginBottom: 3,
+      textTransform: "uppercase",
+      letterSpacing: "0.06em"
+    }
+  }, "Pair with"), /*#__PURE__*/React.createElement("button", {
+    onClick: function onClick() {
+      return setForm(function (p) {
+        return _objectSpread(_objectSpread({}, p), {}, {
+          pairedPiece: p.pairedPiece ? null : {
+            itemName: p.itemName === "Park VII Jersey" ? "Park III Shorts" : "Park VII Jersey",
+            size: p.size
+          }
+        });
+      });
+    },
+    style: {
+      background: form.pairedPiece ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.05)",
+      border: "1px solid ".concat(form.pairedPiece ? C.green : C.grey3),
+      color: form.pairedPiece ? C.green : C.grey5,
+      borderRadius: 2,
+      padding: "5px 10px",
+      fontSize: 10,
+      fontWeight: 700,
+      cursor: "pointer",
+      textTransform: "uppercase",
+      width: "100%"
+    }
+  }, form.pairedPiece ? "✓ " + (form.itemName === "Park VII Jersey" ? "+ Shorts" : "+ Jersey") : form.itemName === "Park VII Jersey" ? "+ Shorts" : "+ Jersey"), form.pairedPiece && /*#__PURE__*/React.createElement("select", {
+    style: _objectSpread(_objectSpread({}, IS), {}, {
+      marginTop: 4,
+      borderColor: C.green
+    }),
+    value: form.pairedPiece.size,
+    onChange: function onChange(e) {
+      return setForm(function (p) {
+        return _objectSpread(_objectSpread({}, p), {}, {
+          pairedPiece: _objectSpread(_objectSpread({}, p.pairedPiece), {}, {
+            size: e.target.value
+          })
+        });
+      });
+    }
+  }, SIZES.map(function (s) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: s
+    }, s);
   })))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       color: C.grey5,
@@ -5348,9 +5395,11 @@ function TabSales(_ref20) {
     onClick: function onClick() {
       setSaleLines(function (p) {
         return [].concat(_toConsumableArray(p), [{
-          itemName: form.itemName || "Nike Park Senior Set",
-          colour: form.colour,
-          size: form.size,
+          itemName: "Nike Park Senior Set",
+          colour: "White",
+          size: "M",
+          salePrice: "",
+          pairedPiece: null,
           id: Date.now()
         }]);
       });
@@ -5392,53 +5441,77 @@ function TabSales(_ref20) {
       fontFamily: "monospace"
     }
   }, "\xA3", getItemFromColour(form.colour, form.itemName).cost.toFixed(2))), saleLines.map(function (line, idx) {
+    var isJersey = line.itemName === "Park VII Jersey";
+    var isShorts = line.itemName === "Park III Shorts";
+    var canPair = isJersey || isShorts;
+    var pairedLabel = isJersey ? "+ Shorts" : "+ Jersey";
+    var pairedItemName = isJersey ? "Park III Shorts" : "Park VII Jersey";
+    var lineCost = getItemFromColour(line.colour, line.itemName).cost + (line.pairedPiece ? getItemFromColour(line.colour, line.pairedPiece.itemName).cost : 0);
     return /*#__PURE__*/React.createElement("div", {
       key: line.id,
       style: {
         background: C.grey2,
         borderRadius: 3,
-        padding: "6px 9px",
-        marginBottom: 4,
+        padding: "8px 9px",
+        marginBottom: 6
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 4,
+        marginBottom: 6,
+        flexWrap: "wrap"
+      }
+    }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref26) {
+      var _ref27 = _slicedToArray(_ref26, 2),
+        k = _ref27[0],
+        lbl = _ref27[1];
+      var active = line.itemName === k;
+      return /*#__PURE__*/React.createElement("button", {
+        key: k,
+        onClick: function onClick() {
+          var fc = k === "Nike Park Senior Set" ? "White" : k === "Park VII Jersey" ? "University Blue" : k === "Park III Shorts" ? "University Blue" : k === "Challenger Shorts" ? "Black Silver" : "White Silver";
+          setSaleLines(function (p) {
+            return p.map(function (l, i) {
+              return i === idx ? _objectSpread(_objectSpread({}, l), {}, {
+                itemName: k,
+                colour: fc,
+                pairedPiece: null
+              }) : l;
+            });
+          });
+        },
+        style: {
+          background: active ? "rgba(255,255,255,0.12)" : "transparent",
+          border: "1px solid ".concat(active ? C.offwhite : C.grey3),
+          color: active ? C.offwhite : C.grey5,
+          borderRadius: 2,
+          padding: "2px 7px",
+          fontSize: 9,
+          fontWeight: 700,
+          cursor: "pointer",
+          textTransform: "uppercase"
+        }
+      }, lbl);
+    })), /*#__PURE__*/React.createElement("div", {
+      style: {
         display: "grid",
-        gridTemplateColumns: "1fr auto auto auto",
-        gap: 8,
+        gridTemplateColumns: "1fr auto auto auto auto",
+        gap: 6,
         alignItems: "center"
       }
-    }, /*#__PURE__*/React.createElement("select", {
-      style: {
-        background: C.grey1,
-        border: "1px solid ".concat(C.grey3),
-        color: C.offwhite,
-        borderRadius: 2,
-        padding: "3px 6px",
-        fontSize: 11,
-        outline: "none"
-      },
-      value: line.itemName,
-      onChange: function onChange(e) {
-        return setSaleLines(function (p) {
-          return p.map(function (l, i) {
-            return i === idx ? _objectSpread(_objectSpread({}, l), {}, {
-              itemName: e.target.value
-            }) : l;
-          });
-        });
-      }
-    }, ["Nike Park Senior Set", "Park VII Jersey", "Park III Shorts", "Challenger Shorts", "Miler Top"].map(function (n) {
-      return /*#__PURE__*/React.createElement("option", {
-        key: n
-      }, n);
-    })), /*#__PURE__*/React.createElement("input", {
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("input", {
       list: "line-colours-".concat(idx),
       style: {
         background: C.grey1,
         border: "1px solid ".concat(C.grey3),
         color: C.offwhite,
         borderRadius: 2,
-        padding: "3px 6px",
+        padding: "4px 6px",
         fontSize: 11,
-        width: 120,
-        outline: "none"
+        width: "100%",
+        outline: "none",
+        boxSizing: "border-box"
       },
       value: line.colour,
       onChange: function onChange(e) {
@@ -5458,13 +5531,13 @@ function TabSales(_ref20) {
         key: c,
         value: c
       });
-    })), /*#__PURE__*/React.createElement("select", {
+    }))), /*#__PURE__*/React.createElement("select", {
       style: {
         background: C.grey1,
         border: "1px solid ".concat(C.grey3),
         color: C.offwhite,
         borderRadius: 2,
-        padding: "3px 6px",
+        padding: "4px 6px",
         fontSize: 11,
         outline: "none"
       },
@@ -5482,7 +5555,55 @@ function TabSales(_ref20) {
       return /*#__PURE__*/React.createElement("option", {
         key: s
       }, s);
-    })), /*#__PURE__*/React.createElement("button", {
+    })), /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      placeholder: "\xA3 Price",
+      style: {
+        background: C.grey1,
+        border: "1px solid ".concat(C.grey3),
+        color: C.offwhite,
+        borderRadius: 2,
+        padding: "4px 6px",
+        fontSize: 11,
+        width: 72,
+        outline: "none"
+      },
+      value: line.salePrice,
+      onChange: function onChange(e) {
+        return setSaleLines(function (p) {
+          return p.map(function (l, i) {
+            return i === idx ? _objectSpread(_objectSpread({}, l), {}, {
+              salePrice: e.target.value
+            }) : l;
+          });
+        });
+      }
+    }), canPair && /*#__PURE__*/React.createElement("button", {
+      onClick: function onClick() {
+        return setSaleLines(function (p) {
+          return p.map(function (l, i) {
+            return i === idx ? _objectSpread(_objectSpread({}, l), {}, {
+              pairedPiece: l.pairedPiece ? null : {
+                itemName: pairedItemName,
+                size: l.size
+              }
+            }) : l;
+          });
+        });
+      },
+      style: {
+        background: line.pairedPiece ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.05)",
+        border: "1px solid ".concat(line.pairedPiece ? C.green : C.grey3),
+        color: line.pairedPiece ? C.green : C.grey5,
+        borderRadius: 2,
+        padding: "4px 7px",
+        fontSize: 9,
+        fontWeight: 700,
+        cursor: "pointer",
+        textTransform: "uppercase",
+        whiteSpace: "nowrap"
+      }
+    }, line.pairedPiece ? "✓ " + pairedLabel : pairedLabel), /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
         return setSaleLines(function (p) {
           return p.filter(function (_, i) {
@@ -5495,24 +5616,56 @@ function TabSales(_ref20) {
         border: "1px solid rgba(232,38,10,0.3)",
         color: C.red,
         borderRadius: 2,
-        padding: "2px 6px",
+        padding: "4px 6px",
         fontSize: 9,
         fontWeight: 700,
         cursor: "pointer"
       }
-    }, "\u2715"));
-  }), saleLines.length > 0 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      color: C.grey5,
-      fontSize: 10,
-      marginTop: 4
-    }
-  }, "Total cost: \xA3", [{
-    itemName: form.itemName || "Nike Park Senior Set",
-    colour: form.colour
-  }].concat(_toConsumableArray(saleLines)).reduce(function (a, l) {
-    return a + getItemFromColour(l.colour, l.itemName).cost;
-  }, 0).toFixed(2))), /*#__PURE__*/React.createElement("div", {
+    }, "\u2715")), line.pairedPiece && /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 5,
+        display: "flex",
+        alignItems: "center",
+        gap: 6
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.green,
+        fontSize: 10
+      }
+    }, "+ ", line.pairedPiece.itemName === "Park III Shorts" ? "Shorts" : "Jersey"), /*#__PURE__*/React.createElement("select", {
+      style: {
+        background: C.grey1,
+        border: "1px solid ".concat(C.green),
+        color: C.offwhite,
+        borderRadius: 2,
+        padding: "2px 6px",
+        fontSize: 10,
+        outline: "none"
+      },
+      value: line.pairedPiece.size,
+      onChange: function onChange(e) {
+        return setSaleLines(function (p) {
+          return p.map(function (l, i) {
+            return i === idx ? _objectSpread(_objectSpread({}, l), {}, {
+              pairedPiece: _objectSpread(_objectSpread({}, l.pairedPiece), {}, {
+                size: e.target.value
+              })
+            }) : l;
+          });
+        });
+      }
+    }, SIZES.map(function (s) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: s
+      }, s);
+    })), /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.grey5,
+        fontSize: 10
+      }
+    }, "\xA3", lineCost.toFixed(2), " cost")));
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8
@@ -5528,6 +5681,7 @@ function TabSales(_ref20) {
       setMultiMode(false);
     }
   }, "Cancel"))), filtered.map(function (sale, idx) {
+    var _ref28, _sale$cost;
     var sc = statusCol(sale.status);
     var isEditing = editId === sale.id;
     var isLegacy = sale.source === "bham";
@@ -5608,7 +5762,13 @@ function TabSales(_ref20) {
       style: {
         opacity: 0.6
       }
-    }, "Shorts"), " ", sale.shortsSize) : sale.size), /*#__PURE__*/React.createElement(Tag, {
+    }, "Shorts"), " ", sale.shortsSize) : sale.size, sale.pairedPiece && /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.green,
+        fontWeight: 400,
+        marginLeft: 4
+      }
+    }, "+ ", sale.pairedPiece.itemName === "Park III Shorts" ? "Shorts" : "Jersey", " ", sale.pairedPiece.size)), /*#__PURE__*/React.createElement(Tag, {
       bg: C.grey2
     }, sale.platform), /*#__PURE__*/React.createElement(Tag, {
       bg: "rgba(".concat(sc === C.green ? "34,197,94" : sc === C.amber ? "245,158,11" : sc === C.blue ? "59,130,246" : sc === C.purple ? "168,85,247" : "155,155,155", ",0.15)"),
@@ -5639,7 +5799,7 @@ function TabSales(_ref20) {
       style: {
         color: C.offwhite
       }
-    }, "\xA3", (sale.costOverride || SET_COST).toFixed(2))), sale.delShare > 0 && /*#__PURE__*/React.createElement("span", null, "Del: ", /*#__PURE__*/React.createElement("strong", {
+    }, "\xA3", ((_ref28 = (_sale$cost = sale.cost) !== null && _sale$cost !== void 0 ? _sale$cost : sale.costOverride) !== null && _ref28 !== void 0 ? _ref28 : SET_COST).toFixed(2))), sale.delShare > 0 && /*#__PURE__*/React.createElement("span", null, "Del: ", /*#__PURE__*/React.createElement("strong", {
       style: {
         color: C.amber
       }
@@ -5711,10 +5871,10 @@ function TabSales(_ref20) {
         marginBottom: 8,
         flexWrap: "wrap"
       }
-    }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref26) {
-      var _ref27 = _slicedToArray(_ref26, 2),
-        k = _ref27[0],
-        lbl = _ref27[1];
+    }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref29) {
+      var _ref30 = _slicedToArray(_ref29, 2),
+        k = _ref30[0],
+        lbl = _ref30[1];
       var active = editForm.itemName === k;
       return /*#__PURE__*/React.createElement("button", {
         key: k,
@@ -5861,6 +6021,63 @@ function TabSales(_ref20) {
         return setEditForm(function (p) {
           return _objectSpread(_objectSpread({}, p), {}, {
             shortsSize: e.target.value
+          });
+        });
+      }
+    }, SIZES.map(function (s) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: s
+      }, s);
+    }))), (editForm.itemName === "Park VII Jersey" || editForm.itemName === "Park III Shorts") && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: C.grey5,
+        fontSize: 9,
+        marginBottom: 2,
+        textTransform: "uppercase",
+        letterSpacing: "0.06em"
+      }
+    }, "Pair with"), /*#__PURE__*/React.createElement("button", {
+      onClick: function onClick() {
+        return setEditForm(function (p) {
+          return _objectSpread(_objectSpread({}, p), {}, {
+            pairedPiece: p.pairedPiece ? null : {
+              itemName: p.itemName === "Park VII Jersey" ? "Park III Shorts" : "Park VII Jersey",
+              size: p.size
+            }
+          });
+        });
+      },
+      style: {
+        background: editForm.pairedPiece ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.05)",
+        border: "1px solid ".concat(editForm.pairedPiece ? C.green : C.grey3),
+        color: editForm.pairedPiece ? C.green : C.grey5,
+        borderRadius: 2,
+        padding: "3px 8px",
+        fontSize: 9,
+        fontWeight: 700,
+        cursor: "pointer",
+        textTransform: "uppercase",
+        width: "100%"
+      }
+    }, editForm.pairedPiece ? "✓ " + (editForm.itemName === "Park VII Jersey" ? "+ Shorts" : "+ Jersey") : editForm.itemName === "Park VII Jersey" ? "+ Shorts" : "+ Jersey"), editForm.pairedPiece && /*#__PURE__*/React.createElement("select", {
+      style: {
+        background: C.grey3,
+        border: "1px solid ".concat(C.green),
+        color: C.offwhite,
+        borderRadius: 2,
+        padding: "3px 6px",
+        fontSize: 10,
+        width: "100%",
+        outline: "none",
+        marginTop: 3
+      },
+      value: editForm.pairedPiece.size || editForm.size,
+      onChange: function onChange(e) {
+        return setEditForm(function (p) {
+          return _objectSpread(_objectSpread({}, p), {}, {
+            pairedPiece: _objectSpread(_objectSpread({}, p.pairedPiece), {}, {
+              size: e.target.value
+            })
           });
         });
       }
@@ -6121,43 +6338,64 @@ function TabSales(_ref20) {
         marginBottom: 4
       }
     }, "Additional items in this sale"), editLines.map(function (line, idx) {
+      var elIsJersey = line.itemName === "Park VII Jersey";
+      var elIsShorts = line.itemName === "Park III Shorts";
+      var elCanPair = elIsJersey || elIsShorts;
+      var elPairedItemName = elIsJersey ? "Park III Shorts" : "Park VII Jersey";
       return /*#__PURE__*/React.createElement("div", {
         key: line.id,
         style: {
           background: C.grey1,
           borderRadius: 2,
-          padding: "6px 8px",
-          marginBottom: 4,
+          padding: "8px",
+          marginBottom: 6
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          gap: 4,
+          marginBottom: 5,
+          flexWrap: "wrap"
+        }
+      }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref31) {
+        var _ref32 = _slicedToArray(_ref31, 2),
+          k = _ref32[0],
+          lbl = _ref32[1];
+        var active = line.itemName === k;
+        return /*#__PURE__*/React.createElement("button", {
+          key: k,
+          onClick: function onClick() {
+            var fc = k === "Nike Park Senior Set" ? "White" : k === "Park VII Jersey" ? "University Blue" : k === "Park III Shorts" ? "University Blue" : k === "Challenger Shorts" ? "Black Silver" : "White Silver";
+            setEditLines(function (p) {
+              return p.map(function (l, i) {
+                return i === idx ? _objectSpread(_objectSpread({}, l), {}, {
+                  itemName: k,
+                  colour: fc,
+                  pairedPiece: null
+                }) : l;
+              });
+            });
+          },
+          style: {
+            background: active ? "rgba(255,255,255,0.12)" : "transparent",
+            border: "1px solid ".concat(active ? C.offwhite : C.grey3),
+            color: active ? C.offwhite : C.grey5,
+            borderRadius: 2,
+            padding: "2px 7px",
+            fontSize: 9,
+            fontWeight: 700,
+            cursor: "pointer",
+            textTransform: "uppercase"
+          }
+        }, lbl);
+      })), /*#__PURE__*/React.createElement("div", {
+        style: {
           display: "grid",
-          gridTemplateColumns: "1fr auto auto auto",
-          gap: 6,
+          gridTemplateColumns: "1fr auto auto auto auto",
+          gap: 5,
           alignItems: "center"
         }
-      }, /*#__PURE__*/React.createElement("select", {
-        style: {
-          background: C.grey2,
-          border: "1px solid ".concat(C.grey3),
-          color: C.offwhite,
-          borderRadius: 2,
-          padding: "3px 6px",
-          fontSize: 11,
-          outline: "none"
-        },
-        value: line.itemName,
-        onChange: function onChange(e) {
-          return setEditLines(function (p) {
-            return p.map(function (l, i) {
-              return i === idx ? _objectSpread(_objectSpread({}, l), {}, {
-                itemName: e.target.value
-              }) : l;
-            });
-          });
-        }
-      }, ["Nike Park Senior Set", "Park VII Jersey", "Park III Shorts", "Challenger Shorts", "Miler Top"].map(function (n) {
-        return /*#__PURE__*/React.createElement("option", {
-          key: n
-        }, n);
-      })), /*#__PURE__*/React.createElement("input", {
+      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("input", {
         list: "edit-line-colours-".concat(idx),
         style: {
           background: C.grey2,
@@ -6166,8 +6404,9 @@ function TabSales(_ref20) {
           borderRadius: 2,
           padding: "3px 6px",
           fontSize: 11,
-          width: 110,
-          outline: "none"
+          width: "100%",
+          outline: "none",
+          boxSizing: "border-box"
         },
         value: line.colour,
         onChange: function onChange(e) {
@@ -6187,7 +6426,7 @@ function TabSales(_ref20) {
           key: c,
           value: c
         });
-      })), /*#__PURE__*/React.createElement("select", {
+      }))), /*#__PURE__*/React.createElement("select", {
         style: {
           background: C.grey2,
           border: "1px solid ".concat(C.grey3),
@@ -6211,7 +6450,54 @@ function TabSales(_ref20) {
         return /*#__PURE__*/React.createElement("option", {
           key: s
         }, s);
-      })), /*#__PURE__*/React.createElement("button", {
+      })), /*#__PURE__*/React.createElement("input", {
+        type: "number",
+        placeholder: "\xA3 Price",
+        style: {
+          background: C.grey2,
+          border: "1px solid ".concat(C.grey3),
+          color: C.offwhite,
+          borderRadius: 2,
+          padding: "3px 6px",
+          fontSize: 11,
+          width: 65,
+          outline: "none"
+        },
+        value: line.salePrice || "",
+        onChange: function onChange(e) {
+          return setEditLines(function (p) {
+            return p.map(function (l, i) {
+              return i === idx ? _objectSpread(_objectSpread({}, l), {}, {
+                salePrice: e.target.value
+              }) : l;
+            });
+          });
+        }
+      }), elCanPair && /*#__PURE__*/React.createElement("button", {
+        onClick: function onClick() {
+          return setEditLines(function (p) {
+            return p.map(function (l, i) {
+              return i === idx ? _objectSpread(_objectSpread({}, l), {}, {
+                pairedPiece: l.pairedPiece ? null : {
+                  itemName: elPairedItemName,
+                  size: l.size
+                }
+              }) : l;
+            });
+          });
+        },
+        style: {
+          background: line.pairedPiece ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.05)",
+          border: "1px solid ".concat(line.pairedPiece ? C.green : C.grey3),
+          color: line.pairedPiece ? C.green : C.grey5,
+          borderRadius: 2,
+          padding: "3px 5px",
+          fontSize: 9,
+          fontWeight: 700,
+          cursor: "pointer",
+          textTransform: "uppercase"
+        }
+      }, line.pairedPiece ? "✓ " + (elIsJersey ? "Shorts" : "Jersey") : elIsJersey ? "+Shorts" : "+Jersey"), /*#__PURE__*/React.createElement("button", {
         onClick: function onClick() {
           return setEditLines(function (p) {
             return p.filter(function (_, i) {
@@ -6224,12 +6510,50 @@ function TabSales(_ref20) {
           border: "1px solid rgba(232,38,10,0.3)",
           color: C.red,
           borderRadius: 2,
-          padding: "2px 6px",
+          padding: "3px 5px",
           fontSize: 9,
           fontWeight: 700,
           cursor: "pointer"
         }
-      }, "\u2715"));
+      }, "\u2715")), line.pairedPiece && /*#__PURE__*/React.createElement("div", {
+        style: {
+          marginTop: 4,
+          display: "flex",
+          alignItems: "center",
+          gap: 6
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.green,
+          fontSize: 10
+        }
+      }, "+ ", line.pairedPiece.itemName === "Park III Shorts" ? "Shorts" : "Jersey"), /*#__PURE__*/React.createElement("select", {
+        style: {
+          background: C.grey2,
+          border: "1px solid ".concat(C.green),
+          color: C.offwhite,
+          borderRadius: 2,
+          padding: "2px 5px",
+          fontSize: 10,
+          outline: "none"
+        },
+        value: line.pairedPiece.size || line.size,
+        onChange: function onChange(e) {
+          return setEditLines(function (p) {
+            return p.map(function (l, i) {
+              return i === idx ? _objectSpread(_objectSpread({}, l), {}, {
+                pairedPiece: _objectSpread(_objectSpread({}, l.pairedPiece), {}, {
+                  size: e.target.value
+                })
+              }) : l;
+            });
+          });
+        }
+      }, SIZES.map(function (s) {
+        return /*#__PURE__*/React.createElement("option", {
+          key: s
+        }, s);
+      }))));
     })), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
@@ -6256,9 +6580,11 @@ function TabSales(_ref20) {
         return setEditLines(function (p) {
           return [].concat(_toConsumableArray(p), [{
             id: Date.now(),
-            itemName: editForm.itemName || "Nike Park Senior Set",
-            colour: editForm.colour || "White",
-            size: editForm.size || "M"
+            itemName: "Nike Park Senior Set",
+            colour: "White",
+            size: "M",
+            salePrice: "",
+            pairedPiece: null
           }]);
         });
       },
@@ -6457,14 +6783,14 @@ function getSaleStage(sale) {
   if (sale.status === "awaiting_stock") return 1;
   return 3;
 }
-function TabCustomers(_ref28) {
-  var customers = _ref28.customers,
-    setCustomers = _ref28.setCustomers,
-    sales = _ref28.sales,
-    setSales = _ref28.setSales,
-    colours = _ref28.colours,
-    stock = _ref28.stock,
-    onConvertRequest = _ref28.onConvertRequest;
+function TabCustomers(_ref33) {
+  var customers = _ref33.customers,
+    setCustomers = _ref33.setCustomers,
+    sales = _ref33.sales,
+    setSales = _ref33.setSales,
+    colours = _ref33.colours,
+    stock = _ref33.stock,
+    onConvertRequest = _ref33.onConvertRequest;
   var _useState43 = useState("list"),
     _useState44 = _slicedToArray(_useState43, 2),
     view = _useState44[0],
@@ -7583,10 +7909,10 @@ function TabCustomers(_ref28) {
 }
 
 // ── TAB: Mappings ───────────────────────────────────────────────
-function TabMappings(_ref29) {
-  var mappings = _ref29.mappings,
-    setMappings = _ref29.setMappings,
-    colours = _ref29.colours;
+function TabMappings(_ref34) {
+  var mappings = _ref34.mappings,
+    setMappings = _ref34.setMappings,
+    colours = _ref34.colours;
   var _useState65 = useState(""),
     _useState66 = _slicedToArray(_useState65, 2),
     newColourRaw = _useState66[0],
@@ -7650,14 +7976,14 @@ function TabMappings(_ref29) {
     });
     setConfirmDelete(null);
   }
-  var MappingTable = function MappingTable(_ref30) {
-    var type = _ref30.type,
-      title = _ref30.title,
-      newRaw = _ref30.newRaw,
-      setNewRaw = _ref30.setNewRaw,
-      newInternal = _ref30.newInternal,
-      setNewInternal = _ref30.setNewInternal,
-      internalOptions = _ref30.internalOptions;
+  var MappingTable = function MappingTable(_ref35) {
+    var type = _ref35.type,
+      title = _ref35.title,
+      newRaw = _ref35.newRaw,
+      setNewRaw = _ref35.setNewRaw,
+      newInternal = _ref35.newInternal,
+      setNewInternal = _ref35.setNewInternal,
+      internalOptions = _ref35.internalOptions;
     return /*#__PURE__*/React.createElement("div", {
       style: {
         marginBottom: 24
@@ -8046,20 +8372,20 @@ function normaliseValue(raw, mappingList, autoAdd, setMappings, type) {
     matched: false
   };
 }
-function TabPurchases(_ref31) {
+function TabPurchases(_ref36) {
   var _extractedData$total, _matchedPurchase$item, _matchedPurchase$item2;
-  var purchases = _ref31.purchases,
-    setPurchases = _ref31.setPurchases,
-    driStock = _ref31.driStock,
-    setDriStock = _ref31.setDriStock,
-    chinese = _ref31.chinese,
-    setChinese = _ref31.setChinese,
-    colours = _ref31.colours,
-    setColours = _ref31.setColours,
-    mappings = _ref31.mappings,
-    setMappings = _ref31.setMappings,
-    stock = _ref31.stock,
-    setStock = _ref31.setStock;
+  var purchases = _ref36.purchases,
+    setPurchases = _ref36.setPurchases,
+    driStock = _ref36.driStock,
+    setDriStock = _ref36.setDriStock,
+    chinese = _ref36.chinese,
+    setChinese = _ref36.setChinese,
+    colours = _ref36.colours,
+    setColours = _ref36.setColours,
+    mappings = _ref36.mappings,
+    setMappings = _ref36.setMappings,
+    stock = _ref36.stock,
+    setStock = _ref36.setStock;
   var _useState79 = useState("list"),
     _useState80 = _slicedToArray(_useState79, 2),
     view = _useState80[0],
@@ -8666,10 +8992,10 @@ function TabPurchases(_ref31) {
         marginBottom: 8,
         flexWrap: "wrap"
       }
-    }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref32) {
-      var _ref33 = _slicedToArray(_ref32, 2),
-        k = _ref33[0],
-        lbl = _ref33[1];
+    }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref37) {
+      var _ref38 = _slicedToArray(_ref37, 2),
+        k = _ref38[0],
+        lbl = _ref38[1];
       var active = line.itemName === k;
       return /*#__PURE__*/React.createElement("button", {
         key: k,
@@ -10275,11 +10601,11 @@ function TabPurchases(_ref31) {
 
 // ── TAB: Birmingham Stock ──────────────────────────────────────
 
-function ChineseEditForm(_ref34) {
-  var item = _ref34.item,
-    setChinese = _ref34.setChinese,
-    colours = _ref34.colours,
-    onClose = _ref34.onClose;
+function ChineseEditForm(_ref39) {
+  var item = _ref39.item,
+    setChinese = _ref39.setChinese,
+    colours = _ref39.colours,
+    onClose = _ref39.onClose;
   var _useState115 = useState({
       item: item.item || "",
       colour: item.colour || "",
@@ -10610,10 +10936,10 @@ function ChineseEditForm(_ref34) {
     }
   }, "Cancel")));
 }
-function ChineseSaleBtn(_ref35) {
+function ChineseSaleBtn(_ref40) {
   var _item$salePrice;
-  var item = _ref35.item,
-    setChinese = _ref35.setChinese;
+  var item = _ref40.item,
+    setChinese = _ref40.setChinese;
   var _useState117 = useState(false),
     _useState118 = _slicedToArray(_useState117, 2),
     show = _useState118[0],
@@ -10710,18 +11036,18 @@ function ChineseSaleBtn(_ref35) {
     }
   }, "\xA3 Sold");
 }
-function TabBirmingham(_ref36) {
-  var chinese = _ref36.chinese,
-    setChinese = _ref36.setChinese,
-    driStock = _ref36.driStock,
-    setDriStock = _ref36.setDriStock,
-    acceptedOffers = _ref36.acceptedOffers,
-    purchases = _ref36.purchases,
-    colours = _ref36.colours,
-    stock = _ref36.stock,
-    setStock = _ref36.setStock,
-    sales = _ref36.sales,
-    setSales = _ref36.setSales;
+function TabBirmingham(_ref41) {
+  var chinese = _ref41.chinese,
+    setChinese = _ref41.setChinese,
+    driStock = _ref41.driStock,
+    setDriStock = _ref41.setDriStock,
+    acceptedOffers = _ref41.acceptedOffers,
+    purchases = _ref41.purchases,
+    colours = _ref41.colours,
+    stock = _ref41.stock,
+    setStock = _ref41.setStock,
+    sales = _ref41.sales,
+    setSales = _ref41.setSales;
   var _useState121 = useState("overview"),
     _useState122 = _slicedToArray(_useState121, 2),
     subTab = _useState122[0],
@@ -10803,10 +11129,10 @@ function TabBirmingham(_ref36) {
         requiredCount[k] = (requiredCount[k] || 0) + 1;
       });
       // Only mark the NET difference — idempotent
-      Object.entries(requiredCount).forEach(function (_ref37) {
-        var _ref38 = _slicedToArray(_ref37, 2),
-          k = _ref38[0],
-          needed = _ref38[1];
+      Object.entries(requiredCount).forEach(function (_ref42) {
+        var _ref43 = _slicedToArray(_ref42, 2),
+          k = _ref43[0],
+          needed = _ref43[1];
         var extra = needed - (alreadySoldCount[k] || 0);
         if (extra <= 0) return;
         var lastDash = k.lastIndexOf("-");
@@ -10953,11 +11279,11 @@ function TabBirmingham(_ref36) {
       });
     });
   }
-  var BhamStockTable = function BhamStockTable(_ref39) {
-    var data = _ref39.data,
-      colourFn = _ref39.colourFn,
-      showMarkArrived = _ref39.showMarkArrived,
-      stockStatus = _ref39.stockStatus;
+  var BhamStockTable = function BhamStockTable(_ref44) {
+    var data = _ref44.data,
+      colourFn = _ref44.colourFn,
+      showMarkArrived = _ref44.showMarkArrived,
+      stockStatus = _ref44.stockStatus;
     return /*#__PURE__*/React.createElement("div", {
       style: {
         background: C.grey1,
@@ -10987,10 +11313,10 @@ function TabBirmingham(_ref36) {
           letterSpacing: "0.07em"
         }
       }, h);
-    }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(data).sort().map(function (_ref40, i) {
-      var _ref41 = _slicedToArray(_ref40, 2),
-        k = _ref41[0],
-        v = _ref41[1];
+    }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(data).sort().map(function (_ref45, i) {
+      var _ref46 = _slicedToArray(_ref45, 2),
+        k = _ref46[0],
+        v = _ref46[1];
       var demKey = normaliseColour(v.colour) + "-" + v.size;
       var dem = demand[demKey] || 0;
       var removeKey = k + "-" + (stockStatus || "in_stock");
@@ -11197,10 +11523,10 @@ function TabBirmingham(_ref36) {
       marginBottom: 14,
       overflowX: "auto"
     }
-  }, [["overview", "Overview"], ["preorder", "Pre-ordered (" + bhamPreOrdered.length + ")"], ["sell", "With Friend (" + bhamToSell.length + ")"], ["history", "History"]].map(function (_ref42) {
-    var _ref43 = _slicedToArray(_ref42, 2),
-      k = _ref43[0],
-      lbl = _ref43[1];
+  }, [["overview", "Overview"], ["preorder", "Pre-ordered (" + bhamPreOrdered.length + ")"], ["sell", "With Friend (" + bhamToSell.length + ")"], ["history", "History"]].map(function (_ref47) {
+    var _ref48 = _slicedToArray(_ref47, 2),
+      k = _ref48[0],
+      lbl = _ref48[1];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       onClick: function onClick() {
@@ -11228,12 +11554,12 @@ function TabBirmingham(_ref36) {
       flexWrap: "wrap",
       marginBottom: 14
     }
-  }, [["Pre-ordered", bhamPreOrdered.length, "on the way", C.amber], ["With Friend", bhamToSell.length, "delivered", C.purple], ["Sold", bhamSold.length, "completed", C.green]].map(function (_ref44) {
-    var _ref45 = _slicedToArray(_ref44, 4),
-      lbl = _ref45[0],
-      val = _ref45[1],
-      sub = _ref45[2],
-      col = _ref45[3];
+  }, [["Pre-ordered", bhamPreOrdered.length, "on the way", C.amber], ["With Friend", bhamToSell.length, "delivered", C.purple], ["Sold", bhamSold.length, "completed", C.green]].map(function (_ref49) {
+    var _ref50 = _slicedToArray(_ref49, 4),
+      lbl = _ref50[0],
+      val = _ref50[1],
+      sub = _ref50[2],
+      col = _ref50[3];
     return /*#__PURE__*/React.createElement("div", {
       key: lbl,
       style: {
@@ -11903,10 +12229,10 @@ function TabBirmingham(_ref36) {
     }, h);
   }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(totalsMap).sort(function (a, b) {
     return a[0].localeCompare(b[0]);
-  }).map(function (_ref46, i) {
-    var _ref47 = _slicedToArray(_ref46, 2),
-      k = _ref47[0],
-      v = _ref47[1];
+  }).map(function (_ref51, i) {
+    var _ref52 = _slicedToArray(_ref51, 2),
+      k = _ref52[0],
+      v = _ref52[1];
     var total = v.preorder + v.inStock;
     var dem = demand[k] || 0;
     var status = v.preorder > 0 ? "preorder" : "in_stock";
@@ -12260,10 +12586,10 @@ function TabBirmingham(_ref36) {
         gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))",
         gap: 5
       }
-    }, Object.entries(itemMap).sort().map(function (_ref48) {
-      var _ref49 = _slicedToArray(_ref48, 2),
-        k = _ref49[0],
-        qty = _ref49[1];
+    }, Object.entries(itemMap).sort().map(function (_ref53) {
+      var _ref54 = _slicedToArray(_ref53, 2),
+        k = _ref54[0],
+        qty = _ref54[1];
       var _k$split3 = k.split("-"),
         _k$split4 = _slicedToArray(_k$split3, 2),
         col = _k$split4[0],
@@ -12293,21 +12619,21 @@ function TabBirmingham(_ref36) {
     })));
   })));
 }
-function TabStock(_ref50) {
-  var driStock = _ref50.driStock,
-    setDriStock = _ref50.setDriStock,
-    acceptedOffers = _ref50.acceptedOffers,
-    purchases = _ref50.purchases,
-    setPurchases = _ref50.setPurchases,
-    chinese = _ref50.chinese,
-    setChinese = _ref50.setChinese,
-    colours = _ref50.colours,
-    setOffers = _ref50.setOffers,
-    sales = _ref50.sales,
-    setSales = _ref50.setSales,
-    bhamSales = _ref50.bhamSales,
-    stock = _ref50.stock,
-    setStock = _ref50.setStock;
+function TabStock(_ref55) {
+  var driStock = _ref55.driStock,
+    setDriStock = _ref55.setDriStock,
+    acceptedOffers = _ref55.acceptedOffers,
+    purchases = _ref55.purchases,
+    setPurchases = _ref55.setPurchases,
+    chinese = _ref55.chinese,
+    setChinese = _ref55.setChinese,
+    colours = _ref55.colours,
+    setOffers = _ref55.setOffers,
+    sales = _ref55.sales,
+    setSales = _ref55.setSales,
+    bhamSales = _ref55.bhamSales,
+    stock = _ref55.stock,
+    setStock = _ref55.setStock;
   var _useState141 = useState("overview"),
     _useState142 = _slicedToArray(_useState141, 2),
     subTab = _useState142[0],
@@ -12382,10 +12708,10 @@ function TabStock(_ref50) {
         requiredCount[k] = (requiredCount[k] || 0) + 1;
       });
       // Only mark the NET difference — makes sync fully idempotent
-      Object.entries(requiredCount).forEach(function (_ref51) {
-        var _ref52 = _slicedToArray(_ref51, 2),
-          k = _ref52[0],
-          needed = _ref52[1];
+      Object.entries(requiredCount).forEach(function (_ref56) {
+        var _ref57 = _slicedToArray(_ref56, 2),
+          k = _ref57[0],
+          needed = _ref57[1];
         var extra = needed - (alreadySoldCount[k] || 0);
         if (extra <= 0) return;
         var _k$split5 = k.split("-"),
@@ -12479,16 +12805,16 @@ function TabStock(_ref50) {
 
   // Combined demand
   var demand = {};
-  Object.entries(offerDemand).forEach(function (_ref53) {
-    var _ref54 = _slicedToArray(_ref53, 2),
-      k = _ref54[0],
-      n = _ref54[1];
+  Object.entries(offerDemand).forEach(function (_ref58) {
+    var _ref59 = _slicedToArray(_ref58, 2),
+      k = _ref59[0],
+      n = _ref59[1];
     return demand[k] = (demand[k] || 0) + n;
   });
-  Object.entries(salesDemand).forEach(function (_ref55) {
-    var _ref56 = _slicedToArray(_ref55, 2),
-      k = _ref56[0],
-      n = _ref56[1];
+  Object.entries(salesDemand).forEach(function (_ref60) {
+    var _ref61 = _slicedToArray(_ref60, 2),
+      k = _ref61[0],
+      n = _ref61[1];
     return demand[k] = (demand[k] || 0) + n;
   });
 
@@ -12612,10 +12938,10 @@ function TabStock(_ref50) {
       });
     });
   }
-  var uncovered = Object.entries(demand).filter(function (_ref57) {
-    var _ref58 = _slicedToArray(_ref57, 2),
-      k = _ref58[0],
-      n = _ref58[1];
+  var uncovered = Object.entries(demand).filter(function (_ref62) {
+    var _ref63 = _slicedToArray(_ref62, 2),
+      k = _ref63[0],
+      n = _ref63[1];
     return (availableMap[k] || 0) < n && (incomingMap[k] || 0) < n;
   });
 
@@ -12643,11 +12969,11 @@ function TabStock(_ref50) {
     acc[k].qty++;
     return acc;
   }, {});
-  var StockTable = function StockTable(_ref59) {
-    var data = _ref59.data,
-      colourFn = _ref59.colourFn,
-      showMarkArrived = _ref59.showMarkArrived,
-      stockStatus = _ref59.stockStatus;
+  var StockTable = function StockTable(_ref64) {
+    var data = _ref64.data,
+      colourFn = _ref64.colourFn,
+      showMarkArrived = _ref64.showMarkArrived,
+      stockStatus = _ref64.stockStatus;
     return /*#__PURE__*/React.createElement("div", {
       style: {
         background: C.grey1,
@@ -12677,10 +13003,10 @@ function TabStock(_ref50) {
           letterSpacing: "0.07em"
         }
       }, h);
-    }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(data).sort().map(function (_ref60, i) {
-      var _ref61 = _slicedToArray(_ref60, 2),
-        k = _ref61[0],
-        v = _ref61[1];
+    }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(data).sort().map(function (_ref65, i) {
+      var _ref66 = _slicedToArray(_ref65, 2),
+        k = _ref66[0],
+        v = _ref66[1];
       var demKey = normaliseColour(v.colour) + "-" + v.size;
       var dem = demand[demKey] || 0;
       var removeKey = k + "-" + (stockStatus || "in_stock");
@@ -12876,10 +13202,10 @@ function TabStock(_ref50) {
       marginBottom: 14,
       overflowX: "auto"
     }
-  }, [["overview", "Overview"], ["preorder", "Pre-ordered (" + preOrdered.length + ")"], ["sell", "To Sell (" + toSell.length + ")"], ["history", "History"]].map(function (_ref62) {
-    var _ref63 = _slicedToArray(_ref62, 2),
-      k = _ref63[0],
-      lbl = _ref63[1];
+  }, [["overview", "Overview"], ["preorder", "Pre-ordered (" + preOrdered.length + ")"], ["sell", "To Sell (" + toSell.length + ")"], ["history", "History"]].map(function (_ref67) {
+    var _ref68 = _slicedToArray(_ref67, 2),
+      k = _ref68[0],
+      lbl = _ref68[1];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       onClick: function onClick() {
@@ -12907,12 +13233,12 @@ function TabStock(_ref50) {
       flexWrap: "wrap",
       marginBottom: 14
     }
-  }, [["Pre-ordered", preOrdered.length, "on the way", C.amber], ["Ready to Sell", toSell.length, "in hand", C.green], ["Accepted Offers", acceptedOffers.length, uncovered.length > 0 ? uncovered.length + " not covered" : "all covered", C.red]].map(function (_ref64) {
-    var _ref65 = _slicedToArray(_ref64, 4),
-      lbl = _ref65[0],
-      val = _ref65[1],
-      sub = _ref65[2],
-      col = _ref65[3];
+  }, [["Pre-ordered", preOrdered.length, "on the way", C.amber], ["Ready to Sell", toSell.length, "in hand", C.green], ["Accepted Offers", acceptedOffers.length, uncovered.length > 0 ? uncovered.length + " not covered" : "all covered", C.red]].map(function (_ref69) {
+    var _ref70 = _slicedToArray(_ref69, 4),
+      lbl = _ref70[0],
+      val = _ref70[1],
+      sub = _ref70[2],
+      col = _ref70[3];
     return /*#__PURE__*/React.createElement("div", {
       key: lbl,
       style: {
@@ -12979,10 +13305,10 @@ function TabStock(_ref50) {
       textTransform: "uppercase",
       letterSpacing: "0.05em"
     }
-  }, "\u21BB Refresh")), Object.entries(demand).map(function (_ref66) {
-    var _ref67 = _slicedToArray(_ref66, 2),
-      k = _ref67[0],
-      n = _ref67[1];
+  }, "\u21BB Refresh")), Object.entries(demand).map(function (_ref71) {
+    var _ref72 = _slicedToArray(_ref71, 2),
+      k = _ref72[0],
+      n = _ref72[1];
     // Key format is colour-size - split on last hyphen to handle colours with hyphens
     var lastDash = k.lastIndexOf("-");
     var col = k.slice(0, lastDash);
@@ -13361,10 +13687,10 @@ function TabStock(_ref50) {
     // Group by itemName then sort within each group by colour+size
     var GROUP_ORDER = ["Nike Park Senior Set", "Park VII Jersey", "Park III Shorts", "Miler Top", "Challenger Shorts"];
     var grouped = {};
-    Object.entries(totalsMap).forEach(function (_ref68) {
-      var _ref69 = _slicedToArray(_ref68, 2),
-        k = _ref69[0],
-        v = _ref69[1];
+    Object.entries(totalsMap).forEach(function (_ref73) {
+      var _ref74 = _slicedToArray(_ref73, 2),
+        k = _ref74[0],
+        v = _ref74[1];
       var g = v.itemName || "Nike Park Senior Set";
       if (!grouped[g]) grouped[g] = [];
       grouped[g].push([k, v]);
@@ -13375,9 +13701,9 @@ function TabStock(_ref50) {
       var items = grouped[grp];
       if (!items || items.length === 0) return;
       var grpLabel = grp === "Nike Park Senior Set" ? "Park Senior Sets" : grp === "Park VII Jersey" ? "Park VII Jerseys" : grp === "Park III Shorts" ? "Park III Shorts" : grp === "Miler Top" ? "Miler Tops" : "Challenger Shorts";
-      var grpTotal = items.reduce(function (a, _ref70) {
-        var _ref71 = _slicedToArray(_ref70, 2),
-          v = _ref71[1];
+      var grpTotal = items.reduce(function (a, _ref75) {
+        var _ref76 = _slicedToArray(_ref75, 2),
+          v = _ref76[1];
         return a + v.preorder + v.inStock;
       }, 0);
       rows.push(/*#__PURE__*/React.createElement("tr", {
@@ -13401,10 +13727,10 @@ function TabStock(_ref50) {
       }, "(", grpTotal, " in stock)"))));
       items.sort(function (a, b) {
         return a[0].localeCompare(b[0]);
-      }).forEach(function (_ref72) {
-        var _ref73 = _slicedToArray(_ref72, 2),
-          k = _ref73[0],
-          v = _ref73[1];
+      }).forEach(function (_ref77) {
+        var _ref78 = _slicedToArray(_ref77, 2),
+          k = _ref78[0],
+          v = _ref78[1];
         var i = rowIdx++;
         var demKey = normaliseColour(v.colour) + "-" + v.size;
         var dem = demand[demKey] || 0;
@@ -14261,10 +14587,10 @@ function TabStock(_ref50) {
         gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))",
         gap: 5
       }
-    }, Object.entries(p.itemMap).sort().map(function (_ref74) {
-      var _ref75 = _slicedToArray(_ref74, 2),
-        k = _ref75[0],
-        qty = _ref75[1];
+    }, Object.entries(p.itemMap).sort().map(function (_ref79) {
+      var _ref80 = _slicedToArray(_ref79, 2),
+        k = _ref80[0],
+        qty = _ref80[1];
       var _k$split7 = k.split("-"),
         _k$split8 = _slicedToArray(_k$split7, 2),
         col = _k$split8[0],
@@ -14321,10 +14647,10 @@ function TabStock(_ref50) {
       acc[k] = (acc[k] || 0) + 1;
     });
     return acc;
-  }, {})).sort().map(function (_ref76) {
-    var _ref77 = _slicedToArray(_ref76, 2),
-      k = _ref77[0],
-      qty = _ref77[1];
+  }, {})).sort().map(function (_ref81) {
+    var _ref82 = _slicedToArray(_ref81, 2),
+      k = _ref82[0],
+      qty = _ref82[1];
     var _k$split9 = k.split("-"),
       _k$split0 = _slicedToArray(_k$split9, 2),
       col = _k$split0[0],
@@ -14373,9 +14699,9 @@ function TabStock(_ref50) {
 }
 
 // ── TAB: Cost Calculator ───────────────────────────────────────
-function TabCalc(_ref78) {
-  var chinese = _ref78.chinese,
-    setChinese = _ref78.setChinese;
+function TabCalc(_ref83) {
+  var chinese = _ref83.chinese,
+    setChinese = _ref83.setChinese;
   var _useState167 = useState(false),
     _useState168 = _slicedToArray(_useState167, 2),
     show = _useState168[0],
@@ -14477,12 +14803,12 @@ function TabCalc(_ref78) {
       gap: 10,
       marginBottom: 10
     }
-  }, [["Item Name", "item", "text", "Nike Air Force 1"], ["Colour", "colour", "text", "White"], ["Size", "size", "text", "UK9"], ["Cost MYR", "costMYR", "number", "250.00"], ["Shipping MYR", "shippingMYR", "number", "45.00"], ["Fixed fees MYR", "fixedMYR", "number", "10.00"], ["Wise Rate", "wiseRate", "number", "0.1902"], ["Note", "note", "text", "optional"]].map(function (_ref79) {
-    var _ref80 = _slicedToArray(_ref79, 4),
-      lbl = _ref80[0],
-      k = _ref80[1],
-      t = _ref80[2],
-      ph = _ref80[3];
+  }, [["Item Name", "item", "text", "Nike Air Force 1"], ["Colour", "colour", "text", "White"], ["Size", "size", "text", "UK9"], ["Cost MYR", "costMYR", "number", "250.00"], ["Shipping MYR", "shippingMYR", "number", "45.00"], ["Fixed fees MYR", "fixedMYR", "number", "10.00"], ["Wise Rate", "wiseRate", "number", "0.1902"], ["Note", "note", "text", "optional"]].map(function (_ref84) {
+    var _ref85 = _slicedToArray(_ref84, 4),
+      lbl = _ref85[0],
+      k = _ref85[1],
+      t = _ref85[2],
+      ph = _ref85[3];
     return /*#__PURE__*/React.createElement("div", {
       key: k
     }, /*#__PURE__*/React.createElement("div", {
@@ -14932,9 +15258,9 @@ function _supaLoadAll() {
         case 3:
           rows = _context8.v;
           out = {};
-          rows.forEach(function (_ref84) {
-            var key = _ref84.key,
-              value = _ref84.value;
+          rows.forEach(function (_ref89) {
+            var key = _ref89.key,
+              value = _ref89.value;
             return out[key] = value;
           });
           return _context8.a(2, out);
