@@ -9257,8 +9257,7 @@ function TabPurchases(_ref39) {
         marginBottom: 2,
         textTransform: "uppercase"
       }
-    }, "Colour"), /*#__PURE__*/React.createElement("input", {
-      list: "order-colours-".concat(idx),
+    }, "Colour"), /*#__PURE__*/React.createElement("select", {
       style: {
         background: C.grey1,
         border: "1px solid ".concat(C.grey3),
@@ -9267,8 +9266,7 @@ function TabPurchases(_ref39) {
         padding: "5px 8px",
         fontSize: 12,
         width: "100%",
-        outline: "none",
-        boxSizing: "border-box"
+        outline: "none"
       },
       value: line.colour,
       onChange: function onChange(e) {
@@ -9279,15 +9277,12 @@ function TabPurchases(_ref39) {
             }) : l;
           });
         });
-      },
-      placeholder: "Colour"
-    }), /*#__PURE__*/React.createElement("datalist", {
-      id: "order-colours-".concat(idx)
+      }
     }, getColoursForItem(line.itemName).map(function (c) {
       return /*#__PURE__*/React.createElement("option", {
         key: c,
         value: c
-      });
+      }, c);
     }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       style: {
         color: C.grey5,
@@ -9421,7 +9416,7 @@ function TabPurchases(_ref39) {
       var purchaseId = Date.now();
       var purchaseItems = orderLines.map(function (l) {
         return {
-          colour: l.colour,
+          colour: l.colour.trim(),
           size: l.size,
           type: l.itemName === "Park VII Jersey" ? "top" : l.itemName === "Park III Shorts" ? "shorts" : l.itemName === "Miler Top" ? "top" : l.itemName === "Challenger Shorts" ? "shorts" : "set",
           cost: getItemFromColour(l.colour).cost || 22.95,
@@ -9451,11 +9446,11 @@ function TabPurchases(_ref39) {
         for (var i = 0; i < l.qty; i++) {
           newStock.push({
             id: Date.now() + Math.random(),
-            colour: l.colour,
+            colour: l.colour.trim(),
             size: l.size,
             itemName: l.itemName,
             stockType: l.itemName === "Park VII Jersey" ? "top" : l.itemName === "Park III Shorts" ? "shorts" : l.itemName === "Miler Top" ? "top" : l.itemName === "Challenger Shorts" ? "shorts" : "set",
-            status: "preorder",
+            status: orderDeliveryStatus === "delivered" ? "in_stock" : "preorder",
             location: loc,
             costGBP: getItemFromColour(l.colour).cost || 22.95,
             supplier: "Newitts",
@@ -15626,7 +15621,11 @@ function App() {
       }
       // Stock — use stored if version matches, else migrate from DRI_STOCK
       if (remote.zak_stock && remote.zak_stock_version === CURRENT_VERSION) {
-        var fixedStock = remote.zak_stock;
+        var fixedStock = remote.zak_stock.map(function (s) {
+          return s.colour && s.colour !== s.colour.trim() ? _objectSpread(_objectSpread({}, s), {}, {
+            colour: s.colour.trim()
+          }) : s;
+        });
         // ── One-time repair: fix over-marked sold items caused by old non-idempotent sync bug ──
         // Only runs once, flagged by zak_sync_repair_v1
         if (!remote.zak_sync_repair_v4) {
