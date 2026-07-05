@@ -138,7 +138,7 @@ var INIT_MAPPINGS = {
     internal: "Crimson"
   }, {
     raw: "Turq White",
-    internal: "Turquoise"
+    internal: "Turq/White"
   }, {
     raw: "Smoke Grey",
     internal: "Smoke Grey"
@@ -372,7 +372,7 @@ var INIT_PURCHASES = [
     cost: 22.95,
     itemName: "Nike Park Senior Set"
   }, {
-    colour: "Turquoise",
+    colour: "Turq/White",
     size: "M",
     type: "set",
     cost: 22.95,
@@ -1024,7 +1024,7 @@ var COLOUR_NORM_MAP = {
   "Pine Green/Black": "Green/Black",
   "Pine Green Black": "Green/Black",
   "Bright Crimson": "Crimson",
-  "Turq White": "Turquoise",
+  "Turq White": "Turq/White",
   "Black-Silver": "Black Silver",
   "White-Silver": "White Silver",
   "Grey-Fog": "Grey Fog",
@@ -1523,7 +1523,7 @@ var DRI_STOCK = [
   costGBP: 22.95,
   supplier: "Newitts"
 }, {
-  colour: "Turquoise",
+  colour: "Turq/White",
   size: "M",
   problem: false,
   status: "in_stock",
@@ -3168,14 +3168,6 @@ function TabDashboard(_ref1) {
     });
   })), _toConsumableArray((purchases || []).filter(function (p) {
     return !p.deleted;
-  }).map(function (p) {
-    var _im$items;
-    var im = INIT_PURCHASES.find(function (ip) {
-      return ip.id === p.id;
-    });
-    return im && ((_im$items = im.items) === null || _im$items === void 0 ? void 0 : _im$items.length) > 0 ? _objectSpread(_objectSpread({}, p), {}, {
-      items: im.items
-    }) : p;
   })));
 
   // ── Shared helpers ──────────────────────────────────────────────
@@ -4440,14 +4432,6 @@ function PLSection(_ref21) {
     });
   })), _toConsumableArray((purchases || []).filter(function (p) {
     return !p.deleted;
-  }).map(function (p) {
-    var _im$items2;
-    var im = INIT_PURCHASES.find(function (ip) {
-      return ip.id === p.id;
-    });
-    return im && ((_im$items2 = im.items) === null || _im$items2 === void 0 ? void 0 : _im$items2.length) > 0 ? _objectSpread(_objectSpread({}, p), {}, {
-      items: im.items
-    }) : p;
   })));
   var totalSpent = allPurchases.reduce(function (t, p) {
     return t + p.items.reduce(function (s, i) {
@@ -12486,14 +12470,6 @@ function TabBirmingham(_ref45) {
     });
   })), _toConsumableArray((purchases || []).filter(function (p) {
     return !p.deleted;
-  }).map(function (p) {
-    var _im$items3;
-    var im = INIT_PURCHASES.find(function (ip) {
-      return ip.id === p.id;
-    });
-    return im && ((_im$items3 = im.items) === null || _im$items3 === void 0 ? void 0 : _im$items3.length) > 0 ? _objectSpread(_objectSpread({}, p), {}, {
-      items: im.items
-    }) : p;
   })));
   var bhamPurchases = allPurchases.filter(function (p) {
     return p.address === "Birmingham";
@@ -13786,14 +13762,6 @@ function TabStock(_ref59) {
     });
   })), _toConsumableArray((purchases || []).filter(function (p) {
     return !p.deleted;
-  }).map(function (p) {
-    var _im$items4;
-    var im = INIT_PURCHASES.find(function (ip) {
-      return ip.id === p.id;
-    });
-    return im && ((_im$items4 = im.items) === null || _im$items4 === void 0 ? void 0 : _im$items4.length) > 0 ? _objectSpread(_objectSpread({}, p), {}, {
-      items: im.items
-    }) : p;
   })));
 
   // Offer demand
@@ -16471,6 +16439,12 @@ function App() {
         var fixedStock = remote.zak_stock.map(function (s) {
           return s.colour && s.colour !== s.colour.trim() ? _objectSpread(_objectSpread({}, s), {}, {
             colour: s.colour.trim()
+          }) : s;
+        });
+        // ── Repair: correct Turquoise M → Turq/White M (INIT data correction) ──
+        fixedStock = fixedStock.map(function (s) {
+          return s.colour === "Turquoise" && s.size === "M" && s.itemName === "Nike Park Senior Set" && s.location === "you" ? _objectSpread(_objectSpread({}, s), {}, {
+            colour: "Turq/White"
           }) : s;
         });
         // ── One-time repair: fix over-marked sold items caused by old non-idempotent sync bug ──
