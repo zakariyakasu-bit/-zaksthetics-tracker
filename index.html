@@ -4818,8 +4818,10 @@ function TabSales(_ref23) {
     var now = Date.now();
     var baseDate = form.saleDate || new Date().toISOString().slice(0, 10);
     // Main line
+    var loggedAt = new Date().toISOString();
     var mainLine = {
       id: now,
+      loggedAt: loggedAt,
       itemType: form.itemType,
       colour: col,
       size: form.size,
@@ -4841,6 +4843,7 @@ function TabSales(_ref23) {
     var extraLines = saleLines.map(function (l, idx) {
       return {
         id: now + idx + 1,
+        loggedAt: loggedAt,
         itemType: "drifit",
         colour: l.colour.trim(),
         size: l.size,
@@ -5986,7 +5989,19 @@ function TabSales(_ref23) {
         color: C.grey5,
         fontSize: 11
       }
-    }, "@", sale.username), isLegacy && /*#__PURE__*/React.createElement(Tag, {
+    }, "@", sale.username), sale.loggedAt && /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.grey5,
+        fontSize: 10,
+        fontFamily: "monospace"
+      }
+    }, "logged ", new Date(sale.loggedAt).toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    })), isLegacy && /*#__PURE__*/React.createElement(Tag, {
       bg: "rgba(168,85,247,0.15)",
       fg: C.purple,
       sm: true
