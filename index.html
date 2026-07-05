@@ -11326,7 +11326,7 @@ function TabBirmingham(_ref44) {
     setBhamSyncing(true);
     // Count completed+pending+shipped Birmingham drifit sales
     var bhamSalesGone = (sales || []).filter(function (s) {
-      return s.platform === "Birms" && ["completed", "pending_delivery", "shipped"].includes(s.status) && (s.itemType === "drifit" || !s.itemType);
+      return s.platform === "Birms" && ["completed", "shipped"].includes(s.status) && (s.itemType === "drifit" || !s.itemType);
     });
     setDriStock(function (prev) {
       var updated = _toConsumableArray(prev);
@@ -12904,43 +12904,74 @@ function TabStock(_ref58) {
     setSyncing = _useState162[1];
   function syncStock() {
     setSyncing(true);
-    var completedSales = (sales || []).filter(function (s) {
-      return ["completed", "pending_delivery", "shipped"].includes(s.status) && (s.itemType === "drifit" || !s.itemType) && s.platform !== "Birms";
+    // Only completed + shipped mark stock as sold
+    // pending_delivery/awaiting_stock = matched but still in hand
+    var goneSales = (sales || []).filter(function (s) {
+      return ["completed", "shipped"].includes(s.status) && (s.itemType === "drifit" || !s.itemType) && s.platform !== "Birms";
     });
     setDriStock(function (prev) {
       var updated = _toConsumableArray(prev);
-      // Key by colour+size only for counting — itemName is unreliable on older sales
-      // so we compare NET totals: (completed sales) - (already-sold stock items) = items left to mark
+      var now = new Date().toISOString().slice(0, 10);
+      // Build required sold count from completed+shipped only
+      var requiredCount = {};
+      goneSales.forEach(function (sale) {
+        var k = normaliseColour(sale.colour) + "-" + sale.size;
+        requiredCount[k] = (requiredCount[k] || 0) + 1;
+      });
+      // Count already sold per key
       var alreadySoldCount = {};
       updated.forEach(function (s) {
-        if (s.status === "sold" && s.location !== "birmingham" && !s.problem && s.status !== "broken") {
+        if (s.status === "sold" && s.location !== "birmingham" && !s.problem) {
           var k = normaliseColour(s.colour) + "-" + s.size;
           alreadySoldCount[k] = (alreadySoldCount[k] || 0) + 1;
         }
       });
-      var requiredCount = {};
-      completedSales.forEach(function (sale) {
-        var k = normaliseColour(sale.colour) + "-" + sale.size;
-        requiredCount[k] = (requiredCount[k] || 0) + 1;
+      // Step 1: Restore over-marked items (sold more than completed+shipped)
+      var allKeys = new Set([].concat(_toConsumableArray(Object.keys(requiredCount)), _toConsumableArray(Object.keys(alreadySoldCount))));
+      allKeys.forEach(function (k) {
+        var needed = requiredCount[k] || 0;
+        var have = alreadySoldCount[k] || 0;
+        var excess = have - needed;
+        if (excess <= 0) return;
+        var lastDash = k.lastIndexOf("-");
+        var col = k.slice(0, lastDash);
+        var sz = k.slice(lastDash + 1);
+        var restored = 0;
+        for (var i = updated.length - 1; i >= 0 && restored < excess; i--) {
+          var s = updated[i];
+          if (s.status === "sold" && s.location !== "birmingham" && !s.problem && normaliseColour(s.colour) === col && s.size === sz) {
+            updated[i] = _objectSpread(_objectSpread({}, s), {}, {
+              status: "in_stock"
+            });
+            restored++;
+          }
+        }
       });
-      // Only mark the NET difference — makes sync fully idempotent
+      // Step 2: Mark NET extra as sold (idempotent)
+      // Recount after restore
+      var soldAfterRestore = {};
+      updated.forEach(function (s) {
+        if (s.status === "sold" && s.location !== "birmingham" && !s.problem) {
+          var k = normaliseColour(s.colour) + "-" + s.size;
+          soldAfterRestore[k] = (soldAfterRestore[k] || 0) + 1;
+        }
+      });
       Object.entries(requiredCount).forEach(function (_ref59) {
         var _ref60 = _slicedToArray(_ref59, 2),
           k = _ref60[0],
           needed = _ref60[1];
-        var extra = needed - (alreadySoldCount[k] || 0);
+        var extra = needed - (soldAfterRestore[k] || 0);
         if (extra <= 0) return;
-        var _k$split5 = k.split("-"),
-          _k$split6 = _slicedToArray(_k$split5, 2),
-          col = _k$split6[0],
-          sz = _k$split6[1];
+        var lastDash = k.lastIndexOf("-");
+        var col = k.slice(0, lastDash);
+        var sz = k.slice(lastDash + 1);
         var marked = 0;
         for (var i = 0; i < updated.length && marked < extra; i++) {
           var s = updated[i];
           if (s.status !== "sold" && s.status !== "broken" && s.location !== "birmingham" && !s.problem && normaliseColour(s.colour) === col && s.size === sz) {
             updated[i] = _objectSpread(_objectSpread({}, s), {}, {
               status: "sold",
-              soldDate: s.soldDate || new Date().toISOString().slice(0, 10)
+              soldDate: s.soldDate || now
             });
             marked++;
           }
@@ -13005,15 +13036,17 @@ function TabStock(_ref58) {
     offerDemand[k] = (offerDemand[k] || 0) + 1;
   });
 
-  // Sales demand - awaiting_stock and pending_delivery Dri-Fit London sales
+  // Sales demand: all active London drifit sales (not completed/shipped)
+  // New model: demand = active sales count; coverage = in_stock + incoming
+  // Gap = max(0, active - in_stock - incoming) → needs ordering
   var allActiveSales = [].concat(_toConsumableArray((sales || []).filter(function (s) {
-    return ["awaiting_stock", "pending_delivery"].includes(s.status) && s.platform !== "Birms" && (s.itemType === "drifit" || !s.itemType);
+    return !["completed", "shipped"].includes(s.status) && s.platform !== "Birms" && (s.itemType === "drifit" || !s.itemType);
   })), _toConsumableArray((bhamSales || []).filter(function (s) {
     return !s.status || s.status === "pending";
   })));
   var salesDemand = {};
   (sales || []).filter(function (s) {
-    return ["awaiting_stock", "pending_delivery"].includes(s.status) && (s.itemType === "drifit" || !s.itemType) && s.platform !== "Birms";
+    return !["completed", "shipped"].includes(s.status) && (s.itemType === "drifit" || !s.itemType) && s.platform !== "Birms";
   }).forEach(function (s) {
     var k = normaliseColour(s.colour) + "-" + s.size;
     salesDemand[k] = (salesDemand[k] || 0) + 1;
@@ -13034,10 +13067,10 @@ function TabStock(_ref58) {
     return demand[k] = (demand[k] || 0) + n;
   });
 
-  // Count ALL available stock (preorder + in hand) for coverage check
+  // Coverage: in_stock only (sold items already consumed, incoming separately tracked)
   var availableMap = {};
   driStock.filter(function (s) {
-    return !s.problem && s.status !== "sold" && s.location !== "birmingham";
+    return !s.problem && s.status === "in_stock" && s.location !== "birmingham";
   }).forEach(function (s) {
     var k = normaliseColour(s.colour) + "-" + s.size;
     availableMap[k] = (availableMap[k] || 0) + 1;
@@ -13158,7 +13191,7 @@ function TabStock(_ref58) {
     var _ref66 = _slicedToArray(_ref65, 2),
       k = _ref66[0],
       n = _ref66[1];
-    return (availableMap[k] || 0) < n && (incomingMap[k] || 0) < n;
+    return Math.max(0, n - (availableMap[k] || 0) - (incomingMap[k] || 0)) > 0;
   });
 
   // Grouped preorder and toSell maps
@@ -13530,6 +13563,10 @@ function TabStock(_ref58) {
     var col = k.slice(0, lastDash);
     var sz = k.slice(lastDash + 1);
     var have = availableMap[k] || 0;
+    // Find buyers for this colour+size
+    var buyers = (sales || []).filter(function (s) {
+      return normaliseColour(s.colour) === col && s.size === sz && !["completed", "shipped"].includes(s.status) && s.platform !== "Birms" && (s.itemType === "drifit" || !s.itemType);
+    });
     var incoming = incomingMap[k] || 0;
     var short = Math.max(0, n - have - incoming);
     var isCovered = short === 0;
@@ -13584,7 +13621,30 @@ function TabStock(_ref58) {
         color: C.red,
         fontSize: 11
       }
-    }, "Need ", n, " \xB7 Have ", have, " \xB7 Short ", n - have, " \xB7 Order needed \uD83D\uDEA8")), isCovered && /*#__PURE__*/React.createElement("button", {
+    }, "Need ", n, " \xB7 Have ", have, " \xB7 Short ", n - have - incoming, " \xB7 Order needed \uD83D\uDEA8"), buyers.length > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 3,
+        display: "flex",
+        gap: 5,
+        flexWrap: "wrap"
+      }
+    }, buyers.map(function (b, bi) {
+      return /*#__PURE__*/React.createElement("span", {
+        key: bi,
+        style: {
+          background: "rgba(255,255,255,0.06)",
+          borderRadius: 2,
+          padding: "1px 5px",
+          fontSize: 10,
+          color: C.grey5
+        }
+      }, "@", b.username || "?", " ", /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: b.status === "awaiting_stock" ? C.amber : C.blue,
+          fontSize: 9
+        }
+      }, b.status === "awaiting_stock" ? "awaiting" : "pending"));
+    }))), isCovered && /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
         // Mark accepted offers as matched
         setOffers(function (p) {
@@ -14801,10 +14861,10 @@ function TabStock(_ref58) {
       var _ref83 = _slicedToArray(_ref82, 2),
         k = _ref83[0],
         qty = _ref83[1];
-      var _k$split7 = k.split("-"),
-        _k$split8 = _slicedToArray(_k$split7, 2),
-        col = _k$split8[0],
-        sz = _k$split8[1];
+      var _k$split5 = k.split("-"),
+        _k$split6 = _slicedToArray(_k$split5, 2),
+        col = _k$split6[0],
+        sz = _k$split6[1];
       return /*#__PURE__*/React.createElement("div", {
         key: k,
         style: {
@@ -14861,10 +14921,10 @@ function TabStock(_ref58) {
     var _ref85 = _slicedToArray(_ref84, 2),
       k = _ref85[0],
       qty = _ref85[1];
-    var _k$split9 = k.split("-"),
-      _k$split0 = _slicedToArray(_k$split9, 2),
-      col = _k$split0[0],
-      sz = _k$split0[1];
+    var _k$split7 = k.split("-"),
+      _k$split8 = _slicedToArray(_k$split7, 2),
+      col = _k$split8[0],
+      sz = _k$split8[1];
     return /*#__PURE__*/React.createElement("div", {
       key: k,
       style: {
