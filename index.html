@@ -2304,19 +2304,11 @@ function TabListings(_ref4) {
   function nc(c) {
     return (COLOUR_MAP[c] || c || "").trim();
   }
-  var INIT_PURCHASES_IDS = INIT_PURCHASES.map(function (p) {
-    return p.id;
-  });
-  var allPurchases = [].concat(_toConsumableArray(INIT_PURCHASES.filter(function (ip) {
-    return !(purchases || []).some(function (p) {
-      return p.id === ip.id;
-    });
-  })), _toConsumableArray(purchases || []));
 
-  // Build set of all ever-stocked items
+  // Build set of all ever-stocked items (London only — Birms excluded)
   var everStocked = new Map();
   driStock.filter(function (s) {
-    return !s.problem;
+    return !s.problem && s.location !== "birmingham";
   }).forEach(function (s) {
     var key = nc(s.colour) + "|" + s.size + "|" + (s.itemName || "Nike Park Senior Set");
     if (!everStocked.has(key)) everStocked.set(key, {
@@ -2326,7 +2318,7 @@ function TabListings(_ref4) {
     });
   });
 
-  // In hand, incoming, active listings
+  // In hand and incoming (London only)
   var inHandMap = {};
   var incomingMap = {};
   driStock.filter(function (s) {
@@ -2336,130 +2328,127 @@ function TabListings(_ref4) {
     if (s.status === "in_stock") inHandMap[key] = (inHandMap[key] || 0) + 1;
     if (s.status === "preorder") incomingMap[key] = (incomingMap[key] || 0) + 1;
   });
-  var activeMap = {};
-  (sales || []).filter(function (s) {
-    return s.status === "pending_delivery" && s.platform !== "Birms" && (s.itemType === "drifit" || !s.itemType);
-  }).forEach(function (s) {
-    var key = nc(s.colour) + "|" + s.size + "|" + (s.itemName || "Nike Park Senior Set");
-    activeMap[key] = (activeMap[key] || 0) + 1;
-  });
   function getDraftKey(key) {
     return key.replace(/\|/g, "-");
   }
-  function getDraftState(key) {
+  function getState(key) {
     var dk = getDraftKey(key);
-    return listingDrafts[dk] || {
-      draft1: false,
-      draft2: false
+    var s = listingDrafts[dk] || {};
+    return {
+      draft1: s.draft1 || false,
+      draft2: s.draft2 || false,
+      listed: s.listed || false
     };
   }
-  function setDraft(key, field, val) {
+  function setState(key, updates) {
     var dk = getDraftKey(key);
     setListingDrafts(function (p) {
-      return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, dk, _objectSpread(_objectSpread({}, getDraftState(key)), {}, _defineProperty({}, field, val))));
+      return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, dk, _objectSpread(_objectSpread({}, getState(key)), updates)));
     });
   }
-  function getStatus(active, inHand, incoming, d1, d2) {
+  function getStatus(listed, d1, d2, inHand, incoming) {
     var draftCount = (d1 ? 1 : 0) + (d2 ? 1 : 0);
-    var needsDrafts = active >= 1 ? 1 : 2;
-    var draftsShort = Math.max(0, needsDrafts - draftCount);
-    if (inHand === 0 && incoming === 0) {
-      if (draftsShort > 0) return {
-        code: "order-draft",
-        label: "\uD83D\uDD34 Order & Draft",
-        sub: "".concat(draftsShort, " draft").concat(draftsShort > 1 ? "s" : "", " needed"),
+    if (listed) {
+      if (inHand === 0 && incoming === 0) return {
+        code: "listed-order",
+        label: "🔴 Order Now",
+        sub: "Live but no stock behind it",
         col: C.red
       };
-      return {
-        code: "order",
-        label: "🟠 Order Now",
-        sub: "Drafts ready — awaiting stock",
-        col: C.amber
-      };
-    }
-    if (inHand === 0 && incoming > 0) {
-      if (draftsShort > 0) return {
-        code: "draft-incoming",
-        label: "🟠 Draft Now",
-        sub: "Stock incoming (".concat(incoming, ")"),
-        col: C.amber
-      };
-      return {
-        code: "incoming",
-        label: "🔵 Incoming",
-        sub: "Drafts ready — stock on its way",
+      if (inHand === 0 && incoming > 0) return {
+        code: "listed-incoming",
+        label: "🔵 Listed · Incoming",
+        sub: "Stock on its way (".concat(incoming, ")"),
         col: C.blue
-      };
-    }
-    // Has in hand
-    if (active >= 1) {
-      if (draftsShort > 0) return {
-        code: "draft",
-        label: "🟠 Draft Now",
-        sub: "Stock in hand (".concat(inHand, ")"),
-        col: C.amber
       };
       return {
         code: "listed",
         label: "🟢 Listed",
-        sub: "Fully covered",
+        sub: "Stock in hand (".concat(inHand, ")"),
         col: C.green
       };
     }
-    if (draftsShort > 0) return {
-      code: "draft-list",
-      label: "🟠 Draft & List",
-      sub: "Stock in hand (".concat(inHand, ") \u2014 create draft then list"),
+    if (draftCount === 2) {
+      if (inHand === 0 && incoming === 0) return {
+        code: "order-list",
+        label: "🔴 Order & Mark as Listed",
+        sub: "Drafts ready — order stock then list",
+        col: C.red
+      };
+      if (inHand === 0 && incoming > 0) return {
+        code: "incoming-list",
+        label: "🟠 Mark as Listed",
+        sub: "Stock incoming (".concat(incoming, ")"),
+        col: C.amber
+      };
+      return {
+        code: "mark-listed",
+        label: "🟠 Mark as Listed",
+        sub: "Stock in hand (".concat(inHand, ") \u2014 go live"),
+        col: C.amber
+      };
+    }
+    if (draftCount === 1) return {
+      code: "create-draft",
+      label: "🟠 Create Draft",
+      sub: "Need 2 drafts before listing",
       col: C.amber
     };
+    if (inHand === 0 && incoming === 0) return {
+      code: "order-draft",
+      label: "🔴 Order & Create 2 Drafts",
+      sub: "No stock, no drafts",
+      col: C.red
+    };
     return {
-      code: "list",
-      label: "🟢 List Now",
-      sub: "Stock in hand (".concat(inHand, ") \u2014 go live"),
-      col: C.green
+      code: "create-drafts",
+      label: "🔴 Create 2 Drafts",
+      sub: "Stock in hand (".concat(inHand, ")"),
+      col: C.red
     };
   }
 
-  // Group by itemName, sort by urgency
+  // Sort order: red first, amber, blue, green
   var ORDER = {
+    "listed-order": 0,
     "order-draft": 0,
-    "draft": 1,
-    "draft-list": 1,
-    "draft-incoming": 1,
-    "order": 2,
-    "list": 3,
-    "incoming": 3,
-    "listed": 4
+    "order-list": 0,
+    "create-drafts": 1,
+    "create-draft": 2,
+    "mark-listed": 3,
+    "incoming-list": 3,
+    "listed-incoming": 4,
+    "listed": 5
   };
   var groups = {};
   everStocked.forEach(function (v, key) {
     var colour = v.colour,
       size = v.size,
       itemName = v.itemName;
-    var active = activeMap[key] || 0;
     var inHand = inHandMap[key] || 0;
     var incoming = incomingMap[key] || 0;
-    var _getDraftState = getDraftState(key),
-      draft1 = _getDraftState.draft1,
-      draft2 = _getDraftState.draft2;
-    var status = getStatus(active, inHand, incoming, draft1, draft2);
+    var _getState = getState(key),
+      draft1 = _getState.draft1,
+      draft2 = _getState.draft2,
+      listed = _getState.listed;
+    var status = getStatus(listed, draft1, draft2, inHand, incoming);
     if (!groups[itemName]) groups[itemName] = [];
     groups[itemName].push({
       key: key,
       colour: colour,
       size: size,
-      active: active,
       inHand: inHand,
       incoming: incoming,
       draft1: draft1,
       draft2: draft2,
+      listed: listed,
       status: status
     });
   });
-  // Sort each group by urgency then colour
   Object.values(groups).forEach(function (rows) {
     return rows.sort(function (a, b) {
-      return (ORDER[a.status.code] || 9) - (ORDER[b.status.code] || 9) || a.colour.localeCompare(b.colour) || a.size.localeCompare(b.size);
+      var _ORDER$a$status$code, _ORDER$b$status$code;
+      return ((_ORDER$a$status$code = ORDER[a.status.code]) !== null && _ORDER$a$status$code !== void 0 ? _ORDER$a$status$code : 9) - ((_ORDER$b$status$code = ORDER[b.status.code]) !== null && _ORDER$b$status$code !== void 0 ? _ORDER$b$status$code : 9) || a.colour.localeCompare(b.colour) || a.size.localeCompare(b.size);
     });
   });
   var GROUP_ORDER = ["Nike Park Senior Set", "Park VII Jersey", "Park III Shorts", "Challenger Shorts", "Miler Top"];
@@ -2470,19 +2459,27 @@ function TabListings(_ref4) {
     "Challenger Shorts": "Challenger Shorts",
     "Miler Top": "Miler Tops"
   };
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SHdr, null, "Listings"), /*#__PURE__*/React.createElement("div", {
+  var totalUrgent = Object.values(groups).flat().filter(function (r) {
+    return ["listed-order", "order-draft", "order-list", "create-drafts", "create-draft"].includes(r.status.code);
+  }).length;
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SHdr, null, "Listings"), totalUrgent > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
-      color: C.grey5,
+      background: "rgba(232,38,10,0.08)",
+      border: "1px solid rgba(232,38,10,0.25)",
+      borderRadius: 4,
+      padding: "8px 12px",
+      marginBottom: 12,
       fontSize: 11,
-      marginBottom: 14
+      color: C.red,
+      fontWeight: 700
     }
-  }, "Track your active listings and draft status across all stocked items. Sorted by urgency."), GROUP_ORDER.filter(function (g) {
+  }, "\uD83D\uDEA8 ", totalUrgent, " item", totalUrgent > 1 ? "s" : "", " need action"), GROUP_ORDER.filter(function (g) {
     var _groups$g;
     return ((_groups$g = groups[g]) === null || _groups$g === void 0 ? void 0 : _groups$g.length) > 0;
   }).map(function (grp) {
     var rows = groups[grp] || [];
     var urgent = rows.filter(function (r) {
-      return ["order-draft", "draft", "draft-list", "draft-incoming"].includes(r.status.code);
+      return ["listed-order", "order-draft", "order-list", "create-drafts", "create-draft"].includes(r.status.code);
     }).length;
     return /*#__PURE__*/React.createElement("div", {
       key: grp,
@@ -2523,7 +2520,7 @@ function TabListings(_ref4) {
       style: {
         borderBottom: "1px solid ".concat(C.grey2)
       }
-    }, ["Colour", "Size", "In Hand", "Incoming", "Active", "Draft 1", "Draft 2", "Status"].map(function (h) {
+    }, ["Colour", "Size", "In Hand", "Incoming", "Draft 1", "Draft 2", "Listed", "Status", ""].map(function (h) {
       return /*#__PURE__*/React.createElement("th", {
         key: h,
         style: {
@@ -2568,12 +2565,6 @@ function TabListings(_ref4) {
         }
       }, r.incoming || "—"), /*#__PURE__*/React.createElement("td", {
         style: {
-          padding: "8px 9px",
-          fontFamily: "monospace",
-          color: r.active > 0 ? C.amber : C.grey5
-        }
-      }, r.active || "—"), /*#__PURE__*/React.createElement("td", {
-        style: {
           padding: "8px 9px"
         }
       }, /*#__PURE__*/React.createElement("label", {
@@ -2587,7 +2578,9 @@ function TabListings(_ref4) {
         type: "checkbox",
         checked: r.draft1,
         onChange: function onChange(e) {
-          return setDraft(r.key, "draft1", e.target.checked);
+          return setState(r.key, {
+            draft1: e.target.checked
+          });
         },
         style: {
           width: 14,
@@ -2615,7 +2608,9 @@ function TabListings(_ref4) {
         type: "checkbox",
         checked: r.draft2,
         onChange: function onChange(e) {
-          return setDraft(r.key, "draft2", e.target.checked);
+          return setState(r.key, {
+            draft2: e.target.checked
+          });
         },
         style: {
           width: 14,
@@ -2632,6 +2627,21 @@ function TabListings(_ref4) {
         style: {
           padding: "8px 9px"
         }
+      }, r.listed ? /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.green,
+          fontWeight: 700,
+          fontSize: 10
+        }
+      }, "\uD83D\uDFE2 Live") : /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.grey5,
+          fontSize: 10
+        }
+      }, "\u2014")), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: "8px 9px"
+        }
       }, /*#__PURE__*/React.createElement("div", {
         style: {
           color: r.status.col,
@@ -2644,7 +2654,47 @@ function TabListings(_ref4) {
           fontSize: 9,
           marginTop: 1
         }
-      }, r.status.sub)));
+      }, r.status.sub)), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: "8px 9px",
+          whiteSpace: "nowrap"
+        }
+      }, r.listed ? /*#__PURE__*/React.createElement("button", {
+        onClick: function onClick() {
+          return setState(r.key, {
+            listed: false
+          });
+        },
+        style: {
+          background: "rgba(232,38,10,0.1)",
+          border: "1px solid rgba(232,38,10,0.3)",
+          color: C.red,
+          borderRadius: 2,
+          padding: "3px 8px",
+          fontSize: 9,
+          fontWeight: 700,
+          cursor: "pointer",
+          textTransform: "uppercase"
+        }
+      }, "Unlist") : (r.draft1 || r.draft2) && /*#__PURE__*/React.createElement("button", {
+        onClick: function onClick() {
+          return setState(r.key, {
+            listed: true,
+            draft1: false
+          });
+        },
+        style: {
+          background: "rgba(34,197,94,0.12)",
+          border: "1px solid ".concat(C.green),
+          color: C.green,
+          borderRadius: 2,
+          padding: "3px 8px",
+          fontSize: 9,
+          fontWeight: 700,
+          cursor: "pointer",
+          textTransform: "uppercase"
+        }
+      }, "\u2713 Mark as Listed")));
     })))));
   }));
 }
@@ -5221,6 +5271,34 @@ function TabSales(_ref24) {
     setSales(function (p) {
       return [].concat(_toConsumableArray(p), [mainLine], _toConsumableArray(extraLines));
     });
+    // ── SYNC A: Vinted sale logged → mark listed=OFF for each line ──
+    // A sale means the listing has converted — reset listed toggle
+    if (form.platform !== "Birms") {
+      var CM = {
+        "Pine Green-Black": "Green/Black",
+        "Bright Crimson": "Crimson",
+        "White-Black": "White/Black"
+      };
+      var ncL = function ncL(c) {
+        return (CM[c] || c || "").trim();
+      };
+      var toReset = [mainLine].concat(_toConsumableArray(extraLines)).filter(function (l) {
+        return l.platform !== "Birms";
+      });
+      if (toReset.length > 0) {
+        setListingDrafts(function (prev) {
+          var next = _objectSpread({}, prev);
+          toReset.forEach(function (l) {
+            var _next$dk;
+            var dk = ncL(l.colour) + "-" + l.size + "-" + (l.itemName || "Nike Park Senior Set");
+            if ((_next$dk = next[dk]) !== null && _next$dk !== void 0 && _next$dk.listed) next = _objectSpread(_objectSpread({}, next), {}, _defineProperty({}, dk, _objectSpread(_objectSpread({}, next[dk]), {}, {
+              listed: false
+            })));
+          });
+          return next;
+        });
+      }
+    }
     setForm({
       itemType: "drifit",
       itemName: "",
@@ -5380,6 +5458,24 @@ function TabSales(_ref24) {
     setEditId(null);
     setEditForm({});
     setEditLines([]);
+    // ── SYNC A (edit): if platform is Vinted and sale is active, reset listed ──
+    if (editForm.platform !== "Birms" && editForm.status !== "completed" && editForm.status !== "shipped") {
+      var CM = {
+        "Pine Green-Black": "Green/Black",
+        "Bright Crimson": "Crimson",
+        "White-Black": "White/Black"
+      };
+      var ncL = function ncL(c) {
+        return (CM[c] || c || "").trim();
+      };
+      var dk = ncL(editForm.colour) + "-" + editForm.size + "-" + (editForm.itemName || "Nike Park Senior Set");
+      setListingDrafts(function (prev) {
+        var _prev$dk;
+        return (_prev$dk = prev[dk]) !== null && _prev$dk !== void 0 && _prev$dk.listed ? _objectSpread(_objectSpread({}, prev), {}, _defineProperty({}, dk, _objectSpread(_objectSpread({}, prev[dk]), {}, {
+          listed: false
+        }))) : prev;
+      });
+    }
   }
 
   // ── Filter options ────────────────────────────────────────────
