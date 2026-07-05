@@ -2290,11 +2290,369 @@ function statusLbl(s) {
 }
 
 // ── TAB: Dashboard ─────────────────────────────────────────────
-function FilterBar(_ref4) {
-  var f = _ref4.f,
-    setF = _ref4.setF,
-    label = _ref4.label,
-    sales = _ref4.sales;
+function TabListings(_ref4) {
+  var sales = _ref4.sales,
+    driStock = _ref4.driStock,
+    purchases = _ref4.purchases,
+    listingDrafts = _ref4.listingDrafts,
+    setListingDrafts = _ref4.setListingDrafts;
+  var COLOUR_MAP = {
+    "Pine Green-Black": "Green/Black",
+    "Bright Crimson": "Crimson",
+    "White-Black": "White/Black"
+  };
+  function nc(c) {
+    return (COLOUR_MAP[c] || c || "").trim();
+  }
+  var INIT_PURCHASES_IDS = INIT_PURCHASES.map(function (p) {
+    return p.id;
+  });
+  var allPurchases = [].concat(_toConsumableArray(INIT_PURCHASES.filter(function (ip) {
+    return !(purchases || []).some(function (p) {
+      return p.id === ip.id;
+    });
+  })), _toConsumableArray(purchases || []));
+
+  // Build set of all ever-stocked items
+  var everStocked = new Map();
+  driStock.filter(function (s) {
+    return !s.problem;
+  }).forEach(function (s) {
+    var key = nc(s.colour) + "|" + s.size + "|" + (s.itemName || "Nike Park Senior Set");
+    if (!everStocked.has(key)) everStocked.set(key, {
+      colour: nc(s.colour),
+      size: s.size,
+      itemName: s.itemName || "Nike Park Senior Set"
+    });
+  });
+
+  // In hand, incoming, active listings
+  var inHandMap = {};
+  var incomingMap = {};
+  driStock.filter(function (s) {
+    return !s.problem && s.location !== "birmingham";
+  }).forEach(function (s) {
+    var key = nc(s.colour) + "|" + s.size + "|" + (s.itemName || "Nike Park Senior Set");
+    if (s.status === "in_stock") inHandMap[key] = (inHandMap[key] || 0) + 1;
+    if (s.status === "preorder") incomingMap[key] = (incomingMap[key] || 0) + 1;
+  });
+  var activeMap = {};
+  (sales || []).filter(function (s) {
+    return s.status === "pending_delivery" && s.platform !== "Birms" && (s.itemType === "drifit" || !s.itemType);
+  }).forEach(function (s) {
+    var key = nc(s.colour) + "|" + s.size + "|" + (s.itemName || "Nike Park Senior Set");
+    activeMap[key] = (activeMap[key] || 0) + 1;
+  });
+  function getDraftKey(key) {
+    return key.replace(/\|/g, "-");
+  }
+  function getDraftState(key) {
+    var dk = getDraftKey(key);
+    return listingDrafts[dk] || {
+      draft1: false,
+      draft2: false
+    };
+  }
+  function setDraft(key, field, val) {
+    var dk = getDraftKey(key);
+    setListingDrafts(function (p) {
+      return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, dk, _objectSpread(_objectSpread({}, getDraftState(key)), {}, _defineProperty({}, field, val))));
+    });
+  }
+  function getStatus(active, inHand, incoming, d1, d2) {
+    var draftCount = (d1 ? 1 : 0) + (d2 ? 1 : 0);
+    var needsDrafts = active >= 1 ? 1 : 2;
+    var draftsShort = Math.max(0, needsDrafts - draftCount);
+    if (inHand === 0 && incoming === 0) {
+      if (draftsShort > 0) return {
+        code: "order-draft",
+        label: "\uD83D\uDD34 Order & Draft",
+        sub: "".concat(draftsShort, " draft").concat(draftsShort > 1 ? "s" : "", " needed"),
+        col: C.red
+      };
+      return {
+        code: "order",
+        label: "🟠 Order Now",
+        sub: "Drafts ready — awaiting stock",
+        col: C.amber
+      };
+    }
+    if (inHand === 0 && incoming > 0) {
+      if (draftsShort > 0) return {
+        code: "draft-incoming",
+        label: "🟠 Draft Now",
+        sub: "Stock incoming (".concat(incoming, ")"),
+        col: C.amber
+      };
+      return {
+        code: "incoming",
+        label: "🔵 Incoming",
+        sub: "Drafts ready — stock on its way",
+        col: C.blue
+      };
+    }
+    // Has in hand
+    if (active >= 1) {
+      if (draftsShort > 0) return {
+        code: "draft",
+        label: "🟠 Draft Now",
+        sub: "Stock in hand (".concat(inHand, ")"),
+        col: C.amber
+      };
+      return {
+        code: "listed",
+        label: "🟢 Listed",
+        sub: "Fully covered",
+        col: C.green
+      };
+    }
+    if (draftsShort > 0) return {
+      code: "draft-list",
+      label: "🟠 Draft & List",
+      sub: "Stock in hand (".concat(inHand, ") \u2014 create draft then list"),
+      col: C.amber
+    };
+    return {
+      code: "list",
+      label: "🟢 List Now",
+      sub: "Stock in hand (".concat(inHand, ") \u2014 go live"),
+      col: C.green
+    };
+  }
+
+  // Group by itemName, sort by urgency
+  var ORDER = {
+    "order-draft": 0,
+    "draft": 1,
+    "draft-list": 1,
+    "draft-incoming": 1,
+    "order": 2,
+    "list": 3,
+    "incoming": 3,
+    "listed": 4
+  };
+  var groups = {};
+  everStocked.forEach(function (v, key) {
+    var colour = v.colour,
+      size = v.size,
+      itemName = v.itemName;
+    var active = activeMap[key] || 0;
+    var inHand = inHandMap[key] || 0;
+    var incoming = incomingMap[key] || 0;
+    var _getDraftState = getDraftState(key),
+      draft1 = _getDraftState.draft1,
+      draft2 = _getDraftState.draft2;
+    var status = getStatus(active, inHand, incoming, draft1, draft2);
+    if (!groups[itemName]) groups[itemName] = [];
+    groups[itemName].push({
+      key: key,
+      colour: colour,
+      size: size,
+      active: active,
+      inHand: inHand,
+      incoming: incoming,
+      draft1: draft1,
+      draft2: draft2,
+      status: status
+    });
+  });
+  // Sort each group by urgency then colour
+  Object.values(groups).forEach(function (rows) {
+    return rows.sort(function (a, b) {
+      return (ORDER[a.status.code] || 9) - (ORDER[b.status.code] || 9) || a.colour.localeCompare(b.colour) || a.size.localeCompare(b.size);
+    });
+  });
+  var GROUP_ORDER = ["Nike Park Senior Set", "Park VII Jersey", "Park III Shorts", "Challenger Shorts", "Miler Top"];
+  var GROUP_LABELS = {
+    "Nike Park Senior Set": "Park Senior Sets",
+    "Park VII Jersey": "Park VII Jerseys",
+    "Park III Shorts": "Park III Shorts",
+    "Challenger Shorts": "Challenger Shorts",
+    "Miler Top": "Miler Tops"
+  };
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SHdr, null, "Listings"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.grey5,
+      fontSize: 11,
+      marginBottom: 14
+    }
+  }, "Track your active listings and draft status across all stocked items. Sorted by urgency."), GROUP_ORDER.filter(function (g) {
+    var _groups$g;
+    return ((_groups$g = groups[g]) === null || _groups$g === void 0 ? void 0 : _groups$g.length) > 0;
+  }).map(function (grp) {
+    var rows = groups[grp] || [];
+    var urgent = rows.filter(function (r) {
+      return ["order-draft", "draft", "draft-list", "draft-incoming"].includes(r.status.code);
+    }).length;
+    return /*#__PURE__*/React.createElement("div", {
+      key: grp,
+      style: {
+        marginBottom: 20
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 8
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 800,
+        fontSize: 11,
+        textTransform: "uppercase",
+        letterSpacing: "0.08em",
+        color: C.grey4
+      }
+    }, GROUP_LABELS[grp] || grp), urgent > 0 && /*#__PURE__*/React.createElement(Tag, {
+      bg: "rgba(232,38,10,0.15)",
+      fg: C.red
+    }, urgent, " need action")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: C.grey1,
+        border: "1px solid ".concat(C.grey2),
+        borderRadius: 4,
+        overflow: "hidden"
+      }
+    }, /*#__PURE__*/React.createElement("table", {
+      style: {
+        width: "100%",
+        borderCollapse: "collapse"
+      }
+    }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+      style: {
+        borderBottom: "1px solid ".concat(C.grey2)
+      }
+    }, ["Colour", "Size", "In Hand", "Incoming", "Active", "Draft 1", "Draft 2", "Status"].map(function (h) {
+      return /*#__PURE__*/React.createElement("th", {
+        key: h,
+        style: {
+          padding: "7px 9px",
+          textAlign: "left",
+          color: C.grey4,
+          fontSize: 9,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: "0.07em"
+        }
+      }, h);
+    }))), /*#__PURE__*/React.createElement("tbody", null, rows.map(function (r, i) {
+      return /*#__PURE__*/React.createElement("tr", {
+        key: r.key,
+        style: {
+          borderBottom: i < rows.length - 1 ? "1px solid ".concat(C.grey2) : "none",
+          background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)"
+        }
+      }, /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: "8px 9px",
+          fontWeight: 700,
+          fontSize: 12
+        }
+      }, r.colour), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: "8px 9px",
+          fontFamily: "monospace"
+        }
+      }, r.size), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: "8px 9px",
+          fontFamily: "monospace",
+          color: r.inHand > 0 ? C.green : C.grey5
+        }
+      }, r.inHand || "—"), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: "8px 9px",
+          fontFamily: "monospace",
+          color: r.incoming > 0 ? C.blue : C.grey5
+        }
+      }, r.incoming || "—"), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: "8px 9px",
+          fontFamily: "monospace",
+          color: r.active > 0 ? C.amber : C.grey5
+        }
+      }, r.active || "—"), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: "8px 9px"
+        }
+      }, /*#__PURE__*/React.createElement("label", {
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          cursor: "pointer"
+        }
+      }, /*#__PURE__*/React.createElement("input", {
+        type: "checkbox",
+        checked: r.draft1,
+        onChange: function onChange(e) {
+          return setDraft(r.key, "draft1", e.target.checked);
+        },
+        style: {
+          width: 14,
+          height: 14,
+          cursor: "pointer",
+          accentColor: C.green
+        }
+      }), /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: r.draft1 ? C.green : C.grey5,
+          fontSize: 10
+        }
+      }, r.draft1 ? "Ready" : "—"))), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: "8px 9px"
+        }
+      }, /*#__PURE__*/React.createElement("label", {
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          cursor: "pointer"
+        }
+      }, /*#__PURE__*/React.createElement("input", {
+        type: "checkbox",
+        checked: r.draft2,
+        onChange: function onChange(e) {
+          return setDraft(r.key, "draft2", e.target.checked);
+        },
+        style: {
+          width: 14,
+          height: 14,
+          cursor: "pointer",
+          accentColor: C.green
+        }
+      }), /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: r.draft2 ? C.green : C.grey5,
+          fontSize: 10
+        }
+      }, r.draft2 ? "Ready" : "—"))), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: "8px 9px"
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          color: r.status.col,
+          fontSize: 10,
+          fontWeight: 700
+        }
+      }, r.status.label), /*#__PURE__*/React.createElement("div", {
+        style: {
+          color: C.grey5,
+          fontSize: 9,
+          marginTop: 1
+        }
+      }, r.status.sub)));
+    })))));
+  }));
+}
+function FilterBar(_ref5) {
+  var f = _ref5.f,
+    setF = _ref5.setF,
+    label = _ref5.label,
+    sales = _ref5.sales;
   var platforms = ["all"].concat(_toConsumableArray(new Set(sales.map(function (s) {
     return s.platform;
   }).filter(Boolean))));
@@ -2441,11 +2799,11 @@ function FilterBar(_ref4) {
         });
       });
     }
-  })), [["Platform", platforms, "platform"], ["Colour", colours, "colour"], ["Size", sizes, "size"], ["Item", items, "item"]].map(function (_ref5) {
-    var _ref6 = _slicedToArray(_ref5, 3),
-      lbl = _ref6[0],
-      opts = _ref6[1],
-      key = _ref6[2];
+  })), [["Platform", platforms, "platform"], ["Colour", colours, "colour"], ["Size", sizes, "size"], ["Item", items, "item"]].map(function (_ref6) {
+    var _ref7 = _slicedToArray(_ref6, 3),
+      lbl = _ref7[0],
+      opts = _ref7[1],
+      key = _ref7[2];
     return /*#__PURE__*/React.createElement("div", {
       key: key
     }, /*#__PURE__*/React.createElement("div", {
@@ -2480,10 +2838,10 @@ function FilterBar(_ref4) {
     })));
   })));
 }
-function PurchaseFilterBar(_ref7) {
-  var f = _ref7.f,
-    setF = _ref7.setF,
-    purchases = _ref7.purchases;
+function PurchaseFilterBar(_ref8) {
+  var f = _ref8.f,
+    setF = _ref8.setF,
+    purchases = _ref8.purchases;
   var today = new Date().toISOString().slice(0, 10);
   var thisMonth = today.slice(0, 7);
   var lastMonth = new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 7);
@@ -2636,11 +2994,11 @@ function PurchaseFilterBar(_ref7) {
         });
       });
     }
-  })), [["Location", locations, "location"], ["Supplier", suppliers, "supplier"], ["Colour", colours, "colour"], ["Size", sizes, "size"], ["Item", items, "item"]].map(function (_ref8) {
-    var _ref9 = _slicedToArray(_ref8, 3),
-      lbl = _ref9[0],
-      opts = _ref9[1],
-      key = _ref9[2];
+  })), [["Location", locations, "location"], ["Supplier", suppliers, "supplier"], ["Colour", colours, "colour"], ["Size", sizes, "size"], ["Item", items, "item"]].map(function (_ref9) {
+    var _ref0 = _slicedToArray(_ref9, 3),
+      lbl = _ref0[0],
+      opts = _ref0[1],
+      key = _ref0[2];
     return /*#__PURE__*/React.createElement("div", {
       key: key
     }, /*#__PURE__*/React.createElement("div", {
@@ -2675,13 +3033,13 @@ function PurchaseFilterBar(_ref7) {
     })));
   })));
 }
-function TabDashboard(_ref0) {
-  var sales = _ref0.sales,
-    offers = _ref0.offers,
-    chinese = _ref0.chinese,
-    driStock = _ref0.driStock,
-    purchases = _ref0.purchases,
-    bhamSales = _ref0.bhamSales;
+function TabDashboard(_ref1) {
+  var sales = _ref1.sales,
+    offers = _ref1.offers,
+    chinese = _ref1.chinese,
+    driStock = _ref1.driStock,
+    purchases = _ref1.purchases,
+    bhamSales = _ref1.bhamSales;
   var allPurchases = [].concat(_toConsumableArray(INIT_PURCHASES.filter(function (ip) {
     return !(purchases || []).some(function (p) {
       return p.id === ip.id;
@@ -2904,11 +3262,11 @@ function TabDashboard(_ref0) {
       gap: 10,
       marginBottom: 14
     }
-  }, [["Revenue", "£" + plRev.toFixed(2), C.blue], ["Cost", "£" + plCost.toFixed(2), C.amber], ["Profit", "£" + plProfit.toFixed(2), plProfit >= 0 ? C.green : C.red], ["Margin", plMargin.toFixed(1) + "%", plProfit >= 0 ? C.green : C.red]].map(function (_ref1) {
-    var _ref10 = _slicedToArray(_ref1, 3),
-      lbl = _ref10[0],
-      val = _ref10[1],
-      col = _ref10[2];
+  }, [["Revenue", "£" + plRev.toFixed(2), C.blue], ["Cost", "£" + plCost.toFixed(2), C.amber], ["Profit", "£" + plProfit.toFixed(2), plProfit >= 0 ? C.green : C.red], ["Margin", plMargin.toFixed(1) + "%", plProfit >= 0 ? C.green : C.red]].map(function (_ref10) {
+    var _ref11 = _slicedToArray(_ref10, 3),
+      lbl = _ref11[0],
+      val = _ref11[1],
+      col = _ref11[2];
     return /*#__PURE__*/React.createElement("div", {
       key: lbl,
       style: {
@@ -2951,11 +3309,11 @@ function TabDashboard(_ref0) {
       gap: 10,
       marginBottom: 8
     }
-  }, [["Completed", slByStatus.completed.length, C.green], ["Pending", slByStatus.pending.length, C.amber], ["Shipped", slByStatus.shipped.length, C.purple], ["Awaiting Stock", slByStatus.awaiting.length, C.blue]].map(function (_ref11) {
-    var _ref12 = _slicedToArray(_ref11, 3),
-      lbl = _ref12[0],
-      val = _ref12[1],
-      col = _ref12[2];
+  }, [["Completed", slByStatus.completed.length, C.green], ["Pending", slByStatus.pending.length, C.amber], ["Shipped", slByStatus.shipped.length, C.purple], ["Awaiting Stock", slByStatus.awaiting.length, C.blue]].map(function (_ref12) {
+    var _ref13 = _slicedToArray(_ref12, 3),
+      lbl = _ref13[0],
+      val = _ref13[1],
+      col = _ref13[2];
     return /*#__PURE__*/React.createElement("div", {
       key: lbl,
       style: {
@@ -3040,11 +3398,11 @@ function TabDashboard(_ref0) {
       gap: 10,
       marginBottom: 14
     }
-  }, [["Total Units", prUnits, C.blue], ["Total Spend", "£" + prTotal.toFixed(2), C.amber], ["Avg Cost per Unit", "£" + (prUnits > 0 ? prTotal / prUnits : 0).toFixed(2), C.grey5]].map(function (_ref13) {
-    var _ref14 = _slicedToArray(_ref13, 3),
-      lbl = _ref14[0],
-      val = _ref14[1],
-      col = _ref14[2];
+  }, [["Total Units", prUnits, C.blue], ["Total Spend", "£" + prTotal.toFixed(2), C.amber], ["Avg Cost per Unit", "£" + (prUnits > 0 ? prTotal / prUnits : 0).toFixed(2), C.grey5]].map(function (_ref14) {
+    var _ref15 = _slicedToArray(_ref14, 3),
+      lbl = _ref15[0],
+      val = _ref15[1],
+      col = _ref15[2];
     return /*#__PURE__*/React.createElement("div", {
       key: lbl,
       style: {
@@ -3226,14 +3584,14 @@ function TabDashboard(_ref0) {
 }
 
 // ── TAB: Offers ────────────────────────────────────────────────
-function TabOffers(_ref15) {
-  var offers = _ref15.offers,
-    setOffers = _ref15.setOffers,
-    acceptedOffers = _ref15.acceptedOffers,
-    actualCost = _ref15.actualCost,
-    colours = _ref15.colours,
-    sales = _ref15.sales,
-    setSales = _ref15.setSales;
+function TabOffers(_ref16) {
+  var offers = _ref16.offers,
+    setOffers = _ref16.setOffers,
+    acceptedOffers = _ref16.acceptedOffers,
+    actualCost = _ref16.actualCost,
+    colours = _ref16.colours,
+    sales = _ref16.sales,
+    setSales = _ref16.setSales;
   var _useState7 = useState(false),
     _useState8 = _slicedToArray(_useState7, 2),
     showAdd = _useState8[0],
@@ -3495,10 +3853,10 @@ function TabOffers(_ref15) {
       marginBottom: 10,
       flexWrap: "wrap"
     }
-  }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref16) {
-    var _ref17 = _slicedToArray(_ref16, 2),
-      k = _ref17[0],
-      lbl = _ref17[1];
+  }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref17) {
+    var _ref18 = _slicedToArray(_ref17, 2),
+      k = _ref18[0],
+      lbl = _ref18[1];
     var active = form.itemName === k;
     return /*#__PURE__*/React.createElement("button", {
       key: k,
@@ -3534,12 +3892,12 @@ function TabOffers(_ref15) {
       gap: 10,
       marginBottom: 10
     }
-  }, [["Username", "username", "text", "@username"], ["Offer £", "offerPrice", "number", "27.50"]].map(function (_ref18) {
-    var _ref19 = _slicedToArray(_ref18, 4),
-      lbl = _ref19[0],
-      k = _ref19[1],
-      t = _ref19[2],
-      ph = _ref19[3];
+  }, [["Username", "username", "text", "@username"], ["Offer £", "offerPrice", "number", "27.50"]].map(function (_ref19) {
+    var _ref20 = _slicedToArray(_ref19, 4),
+      lbl = _ref20[0],
+      k = _ref20[1],
+      t = _ref20[2],
+      ph = _ref20[3];
     return /*#__PURE__*/React.createElement("div", {
       key: k
     }, /*#__PURE__*/React.createElement("div", {
@@ -3945,11 +4303,11 @@ function TabOffers(_ref15) {
 
 // ── TAB: Sales ─────────────────────────────────────────────────
 // ── P&L Section (embedded in Sales tab) ──────────────────────
-function PLSection(_ref20) {
-  var sales = _ref20.sales,
-    bhamSales = _ref20.bhamSales,
-    purchases = _ref20.purchases,
-    driStock = _ref20.driStock;
+function PLSection(_ref21) {
+  var sales = _ref21.sales,
+    bhamSales = _ref21.bhamSales,
+    purchases = _ref21.purchases,
+    driStock = _ref21.driStock;
   var _useState13 = useState("summary"),
     _useState14 = _slicedToArray(_useState13, 2),
     plTab = _useState14[0],
@@ -4117,10 +4475,10 @@ function PLSection(_ref20) {
       gap: 0,
       borderBottom: "1px solid ".concat(C.grey2)
     }
-  }, [["summary", "Summary"], ["purchases", "Purchases"]].map(function (_ref21) {
-    var _ref22 = _slicedToArray(_ref21, 2),
-      k = _ref22[0],
-      lbl = _ref22[1];
+  }, [["summary", "Summary"], ["purchases", "Purchases"]].map(function (_ref22) {
+    var _ref23 = _slicedToArray(_ref22, 2),
+      k = _ref23[0],
+      lbl = _ref23[1];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       onClick: function onClick() {
@@ -4559,20 +4917,20 @@ function PLSection(_ref20) {
     }, "\xA3", p.amountPaid.toFixed(2), " spent")));
   })));
 }
-function TabSales(_ref23) {
-  var sales = _ref23.sales,
-    setSales = _ref23.setSales,
-    colours = _ref23.colours,
-    setColours = _ref23.setColours,
-    purchases = _ref23.purchases,
-    bhamSales = _ref23.bhamSales,
-    setBhamSales = _ref23.setBhamSales,
-    driStock = _ref23.driStock,
-    setDriStock = _ref23.setDriStock,
-    chinese = _ref23.chinese,
-    setChinese = _ref23.setChinese,
-    salesPrefill = _ref23.salesPrefill,
-    setSalesPrefill = _ref23.setSalesPrefill;
+function TabSales(_ref24) {
+  var sales = _ref24.sales,
+    setSales = _ref24.setSales,
+    colours = _ref24.colours,
+    setColours = _ref24.setColours,
+    purchases = _ref24.purchases,
+    bhamSales = _ref24.bhamSales,
+    setBhamSales = _ref24.setBhamSales,
+    driStock = _ref24.driStock,
+    setDriStock = _ref24.setDriStock,
+    chinese = _ref24.chinese,
+    setChinese = _ref24.setChinese,
+    salesPrefill = _ref24.salesPrefill,
+    setSalesPrefill = _ref24.setSalesPrefill;
   var _useState15 = useState(false),
     _useState16 = _slicedToArray(_useState15, 2),
     show = _useState16[0],
@@ -4899,6 +5257,31 @@ function TabSales(_ref23) {
             status: status
           }, dateKey ? _defineProperty({}, dateKey, now) : {});
           if (status === "completed") syncStockOnComplete(updated);
+          // Auto-uncheck draft1 when sale completes or ships — the draft became the active listing
+          if ((status === "completed" || status === "shipped") && (s.status === "pending_delivery" || s.status === "awaiting_stock")) {
+            var COLOUR_MAP = {
+              "Pine Green-Black": "Green/Black",
+              "Bright Crimson": "Crimson",
+              "White-Black": "White/Black"
+            };
+            var nc = function nc(c) {
+              return (COLOUR_MAP[c] || c || "").trim();
+            };
+            var dk = nc(s.colour) + "-" + s.size + "-" + (s.itemName || "Nike Park Senior Set");
+            setListingDrafts(function (prev) {
+              var cur = prev[dk] || {
+                draft1: false,
+                draft2: false
+              };
+              if (cur.draft1) return _objectSpread(_objectSpread({}, prev), {}, _defineProperty({}, dk, _objectSpread(_objectSpread({}, cur), {}, {
+                draft1: false
+              })));
+              if (cur.draft2) return _objectSpread(_objectSpread({}, prev), {}, _defineProperty({}, dk, _objectSpread(_objectSpread({}, cur), {}, {
+                draft2: false
+              })));
+              return prev;
+            });
+          }
           return updated;
         }
         return s;
@@ -5083,11 +5466,11 @@ function TabSales(_ref23) {
       flexWrap: "wrap",
       marginBottom: 10
     }
-  }, [["all", "All", C.offwhite], ["awaiting_stock", "Awaiting Stock", C.blue], ["pending_delivery", "Pending", C.amber], ["shipped", "Shipped", C.purple], ["completed", "Completed", C.green]].map(function (_ref25) {
-    var _ref26 = _slicedToArray(_ref25, 3),
-      k = _ref26[0],
-      lbl = _ref26[1],
-      col = _ref26[2];
+  }, [["all", "All", C.offwhite], ["awaiting_stock", "Awaiting Stock", C.blue], ["pending_delivery", "Pending", C.amber], ["shipped", "Shipped", C.purple], ["completed", "Completed", C.green]].map(function (_ref26) {
+    var _ref27 = _slicedToArray(_ref26, 3),
+      k = _ref27[0],
+      lbl = _ref27[1],
+      col = _ref27[2];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       onClick: function onClick() {
@@ -5184,10 +5567,10 @@ function TabSales(_ref23) {
       marginBottom: 10,
       flexWrap: "wrap"
     }
-  }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"], ["external", "External"]].map(function (_ref27) {
-    var _ref28 = _slicedToArray(_ref27, 2),
-      k = _ref28[0],
-      lbl = _ref28[1];
+  }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"], ["external", "External"]].map(function (_ref28) {
+    var _ref29 = _slicedToArray(_ref28, 2),
+      k = _ref29[0],
+      lbl = _ref29[1];
     var active = form.itemType === "external" ? k === "external" : form.itemName === k && form.itemType === "drifit";
     return /*#__PURE__*/React.createElement("button", {
       key: k,
@@ -5671,10 +6054,10 @@ function TabSales(_ref23) {
         marginBottom: 6,
         flexWrap: "wrap"
       }
-    }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref29) {
-      var _ref30 = _slicedToArray(_ref29, 2),
-        k = _ref30[0],
-        lbl = _ref30[1];
+    }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref30) {
+      var _ref31 = _slicedToArray(_ref30, 2),
+        k = _ref31[0],
+        lbl = _ref31[1];
       var active = line.itemName === k;
       return /*#__PURE__*/React.createElement("button", {
         key: k,
@@ -5890,7 +6273,7 @@ function TabSales(_ref23) {
       setMultiMode(false);
     }
   }, "Cancel"))), filtered.map(function (sale, idx) {
-    var _ref31, _sale$cost;
+    var _ref32, _sale$cost;
     var sc = statusCol(sale.status);
     var isEditing = editId === sale.id;
     var isLegacy = sale.source === "bham";
@@ -6020,7 +6403,7 @@ function TabSales(_ref23) {
       style: {
         color: C.offwhite
       }
-    }, "\xA3", ((_ref31 = (_sale$cost = sale.cost) !== null && _sale$cost !== void 0 ? _sale$cost : sale.costOverride) !== null && _ref31 !== void 0 ? _ref31 : SET_COST).toFixed(2))), sale.delShare > 0 && /*#__PURE__*/React.createElement("span", null, "Del: ", /*#__PURE__*/React.createElement("strong", {
+    }, "\xA3", ((_ref32 = (_sale$cost = sale.cost) !== null && _sale$cost !== void 0 ? _sale$cost : sale.costOverride) !== null && _ref32 !== void 0 ? _ref32 : SET_COST).toFixed(2))), sale.delShare > 0 && /*#__PURE__*/React.createElement("span", null, "Del: ", /*#__PURE__*/React.createElement("strong", {
       style: {
         color: C.amber
       }
@@ -6092,10 +6475,10 @@ function TabSales(_ref23) {
         marginBottom: 8,
         flexWrap: "wrap"
       }
-    }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref32) {
-      var _ref33 = _slicedToArray(_ref32, 2),
-        k = _ref33[0],
-        lbl = _ref33[1];
+    }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref33) {
+      var _ref34 = _slicedToArray(_ref33, 2),
+        k = _ref34[0],
+        lbl = _ref34[1];
       var active = editForm.itemName === k;
       return /*#__PURE__*/React.createElement("button", {
         key: k,
@@ -6578,10 +6961,10 @@ function TabSales(_ref23) {
           marginBottom: 5,
           flexWrap: "wrap"
         }
-      }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref34) {
-        var _ref35 = _slicedToArray(_ref34, 2),
-          k = _ref35[0],
-          lbl = _ref35[1];
+      }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref35) {
+        var _ref36 = _slicedToArray(_ref35, 2),
+          k = _ref36[0],
+          lbl = _ref36[1];
         var active = line.itemName === k;
         return /*#__PURE__*/React.createElement("button", {
           key: k,
@@ -7004,14 +7387,14 @@ function getSaleStage(sale) {
   if (sale.status === "awaiting_stock") return 1;
   return 3;
 }
-function TabCustomers(_ref36) {
-  var customers = _ref36.customers,
-    setCustomers = _ref36.setCustomers,
-    sales = _ref36.sales,
-    setSales = _ref36.setSales,
-    colours = _ref36.colours,
-    stock = _ref36.stock,
-    onConvertRequest = _ref36.onConvertRequest;
+function TabCustomers(_ref37) {
+  var customers = _ref37.customers,
+    setCustomers = _ref37.setCustomers,
+    sales = _ref37.sales,
+    setSales = _ref37.setSales,
+    colours = _ref37.colours,
+    stock = _ref37.stock,
+    onConvertRequest = _ref37.onConvertRequest;
   var _useState43 = useState("list"),
     _useState44 = _slicedToArray(_useState43, 2),
     view = _useState44[0],
@@ -8130,10 +8513,10 @@ function TabCustomers(_ref36) {
 }
 
 // ── TAB: Mappings ───────────────────────────────────────────────
-function TabMappings(_ref37) {
-  var mappings = _ref37.mappings,
-    setMappings = _ref37.setMappings,
-    colours = _ref37.colours;
+function TabMappings(_ref38) {
+  var mappings = _ref38.mappings,
+    setMappings = _ref38.setMappings,
+    colours = _ref38.colours;
   var _useState65 = useState(""),
     _useState66 = _slicedToArray(_useState65, 2),
     newColourRaw = _useState66[0],
@@ -8197,14 +8580,14 @@ function TabMappings(_ref37) {
     });
     setConfirmDelete(null);
   }
-  var MappingTable = function MappingTable(_ref38) {
-    var type = _ref38.type,
-      title = _ref38.title,
-      newRaw = _ref38.newRaw,
-      setNewRaw = _ref38.setNewRaw,
-      newInternal = _ref38.newInternal,
-      setNewInternal = _ref38.setNewInternal,
-      internalOptions = _ref38.internalOptions;
+  var MappingTable = function MappingTable(_ref39) {
+    var type = _ref39.type,
+      title = _ref39.title,
+      newRaw = _ref39.newRaw,
+      setNewRaw = _ref39.setNewRaw,
+      newInternal = _ref39.newInternal,
+      setNewInternal = _ref39.setNewInternal,
+      internalOptions = _ref39.internalOptions;
     return /*#__PURE__*/React.createElement("div", {
       style: {
         marginBottom: 24
@@ -8593,20 +8976,20 @@ function normaliseValue(raw, mappingList, autoAdd, setMappings, type) {
     matched: false
   };
 }
-function TabPurchases(_ref39) {
+function TabPurchases(_ref40) {
   var _extractedData$total, _matchedPurchase$item, _matchedPurchase$item2;
-  var purchases = _ref39.purchases,
-    setPurchases = _ref39.setPurchases,
-    driStock = _ref39.driStock,
-    setDriStock = _ref39.setDriStock,
-    chinese = _ref39.chinese,
-    setChinese = _ref39.setChinese,
-    colours = _ref39.colours,
-    setColours = _ref39.setColours,
-    mappings = _ref39.mappings,
-    setMappings = _ref39.setMappings,
-    stock = _ref39.stock,
-    setStock = _ref39.setStock;
+  var purchases = _ref40.purchases,
+    setPurchases = _ref40.setPurchases,
+    driStock = _ref40.driStock,
+    setDriStock = _ref40.setDriStock,
+    chinese = _ref40.chinese,
+    setChinese = _ref40.setChinese,
+    colours = _ref40.colours,
+    setColours = _ref40.setColours,
+    mappings = _ref40.mappings,
+    setMappings = _ref40.setMappings,
+    stock = _ref40.stock,
+    setStock = _ref40.setStock;
   var _useState79 = useState("list"),
     _useState80 = _slicedToArray(_useState79, 2),
     view = _useState80[0],
@@ -9213,10 +9596,10 @@ function TabPurchases(_ref39) {
         marginBottom: 8,
         flexWrap: "wrap"
       }
-    }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref40) {
-      var _ref41 = _slicedToArray(_ref40, 2),
-        k = _ref41[0],
-        lbl = _ref41[1];
+    }, [["Nike Park Senior Set", "Set"], ["Park VII Jersey", "Jersey"], ["Park III Shorts", "Shorts"], ["Challenger Shorts", "Challenger"], ["Miler Top", "Miler"]].map(function (_ref41) {
+      var _ref42 = _slicedToArray(_ref41, 2),
+        k = _ref42[0],
+        lbl = _ref42[1];
       var active = line.itemName === k;
       return /*#__PURE__*/React.createElement("button", {
         key: k,
@@ -10817,11 +11200,11 @@ function TabPurchases(_ref39) {
 
 // ── TAB: Birmingham Stock ──────────────────────────────────────
 
-function ChineseEditForm(_ref42) {
-  var item = _ref42.item,
-    setChinese = _ref42.setChinese,
-    colours = _ref42.colours,
-    onClose = _ref42.onClose;
+function ChineseEditForm(_ref43) {
+  var item = _ref43.item,
+    setChinese = _ref43.setChinese,
+    colours = _ref43.colours,
+    onClose = _ref43.onClose;
   var _useState115 = useState({
       item: item.item || "",
       colour: item.colour || "",
@@ -11152,10 +11535,10 @@ function ChineseEditForm(_ref42) {
     }
   }, "Cancel")));
 }
-function ChineseSaleBtn(_ref43) {
+function ChineseSaleBtn(_ref44) {
   var _item$salePrice;
-  var item = _ref43.item,
-    setChinese = _ref43.setChinese;
+  var item = _ref44.item,
+    setChinese = _ref44.setChinese;
   var _useState117 = useState(false),
     _useState118 = _slicedToArray(_useState117, 2),
     show = _useState118[0],
@@ -11252,18 +11635,18 @@ function ChineseSaleBtn(_ref43) {
     }
   }, "\xA3 Sold");
 }
-function TabBirmingham(_ref44) {
-  var chinese = _ref44.chinese,
-    setChinese = _ref44.setChinese,
-    driStock = _ref44.driStock,
-    setDriStock = _ref44.setDriStock,
-    acceptedOffers = _ref44.acceptedOffers,
-    purchases = _ref44.purchases,
-    colours = _ref44.colours,
-    stock = _ref44.stock,
-    setStock = _ref44.setStock,
-    sales = _ref44.sales,
-    setSales = _ref44.setSales;
+function TabBirmingham(_ref45) {
+  var chinese = _ref45.chinese,
+    setChinese = _ref45.setChinese,
+    driStock = _ref45.driStock,
+    setDriStock = _ref45.setDriStock,
+    acceptedOffers = _ref45.acceptedOffers,
+    purchases = _ref45.purchases,
+    colours = _ref45.colours,
+    stock = _ref45.stock,
+    setStock = _ref45.setStock,
+    sales = _ref45.sales,
+    setSales = _ref45.setSales;
   var _useState121 = useState("overview"),
     _useState122 = _slicedToArray(_useState121, 2),
     subTab = _useState122[0],
@@ -11345,10 +11728,10 @@ function TabBirmingham(_ref44) {
         requiredCount[k] = (requiredCount[k] || 0) + 1;
       });
       // Only mark the NET difference — idempotent
-      Object.entries(requiredCount).forEach(function (_ref45) {
-        var _ref46 = _slicedToArray(_ref45, 2),
-          k = _ref46[0],
-          needed = _ref46[1];
+      Object.entries(requiredCount).forEach(function (_ref46) {
+        var _ref47 = _slicedToArray(_ref46, 2),
+          k = _ref47[0],
+          needed = _ref47[1];
         var extra = needed - (alreadySoldCount[k] || 0);
         if (extra <= 0) return;
         var lastDash = k.lastIndexOf("-");
@@ -11495,11 +11878,11 @@ function TabBirmingham(_ref44) {
       });
     });
   }
-  var BhamStockTable = function BhamStockTable(_ref47) {
-    var data = _ref47.data,
-      colourFn = _ref47.colourFn,
-      showMarkArrived = _ref47.showMarkArrived,
-      stockStatus = _ref47.stockStatus;
+  var BhamStockTable = function BhamStockTable(_ref48) {
+    var data = _ref48.data,
+      colourFn = _ref48.colourFn,
+      showMarkArrived = _ref48.showMarkArrived,
+      stockStatus = _ref48.stockStatus;
     return /*#__PURE__*/React.createElement("div", {
       style: {
         background: C.grey1,
@@ -11529,10 +11912,10 @@ function TabBirmingham(_ref44) {
           letterSpacing: "0.07em"
         }
       }, h);
-    }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(data).sort().map(function (_ref48, i) {
-      var _ref49 = _slicedToArray(_ref48, 2),
-        k = _ref49[0],
-        v = _ref49[1];
+    }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(data).sort().map(function (_ref49, i) {
+      var _ref50 = _slicedToArray(_ref49, 2),
+        k = _ref50[0],
+        v = _ref50[1];
       var demKey = normaliseColour(v.colour) + "-" + v.size;
       var dem = demand[demKey] || 0;
       var removeKey = k + "-" + (stockStatus || "in_stock");
@@ -11739,10 +12122,10 @@ function TabBirmingham(_ref44) {
       marginBottom: 14,
       overflowX: "auto"
     }
-  }, [["overview", "Overview"], ["preorder", "Pre-ordered (" + bhamPreOrdered.length + ")"], ["sell", "With Friend (" + bhamToSell.length + ")"], ["history", "History"]].map(function (_ref50) {
-    var _ref51 = _slicedToArray(_ref50, 2),
-      k = _ref51[0],
-      lbl = _ref51[1];
+  }, [["overview", "Overview"], ["preorder", "Pre-ordered (" + bhamPreOrdered.length + ")"], ["sell", "With Friend (" + bhamToSell.length + ")"], ["history", "History"]].map(function (_ref51) {
+    var _ref52 = _slicedToArray(_ref51, 2),
+      k = _ref52[0],
+      lbl = _ref52[1];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       onClick: function onClick() {
@@ -11770,12 +12153,12 @@ function TabBirmingham(_ref44) {
       flexWrap: "wrap",
       marginBottom: 14
     }
-  }, [["Pre-ordered", bhamPreOrdered.length, "on the way", C.amber], ["With Friend", bhamToSell.length, "delivered", C.purple], ["Sold", bhamSold.length, "completed", C.green]].map(function (_ref52) {
-    var _ref53 = _slicedToArray(_ref52, 4),
-      lbl = _ref53[0],
-      val = _ref53[1],
-      sub = _ref53[2],
-      col = _ref53[3];
+  }, [["Pre-ordered", bhamPreOrdered.length, "on the way", C.amber], ["With Friend", bhamToSell.length, "delivered", C.purple], ["Sold", bhamSold.length, "completed", C.green]].map(function (_ref53) {
+    var _ref54 = _slicedToArray(_ref53, 4),
+      lbl = _ref54[0],
+      val = _ref54[1],
+      sub = _ref54[2],
+      col = _ref54[3];
     return /*#__PURE__*/React.createElement("div", {
       key: lbl,
       style: {
@@ -12445,10 +12828,10 @@ function TabBirmingham(_ref44) {
     }, h);
   }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(totalsMap).sort(function (a, b) {
     return a[0].localeCompare(b[0]);
-  }).map(function (_ref54, i) {
-    var _ref55 = _slicedToArray(_ref54, 2),
-      k = _ref55[0],
-      v = _ref55[1];
+  }).map(function (_ref55, i) {
+    var _ref56 = _slicedToArray(_ref55, 2),
+      k = _ref56[0],
+      v = _ref56[1];
     var total = v.preorder + v.inStock;
     var dem = demand[k] || 0;
     var status = v.preorder > 0 ? "preorder" : "in_stock";
@@ -12802,10 +13185,10 @@ function TabBirmingham(_ref44) {
         gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))",
         gap: 5
       }
-    }, Object.entries(itemMap).sort().map(function (_ref56) {
-      var _ref57 = _slicedToArray(_ref56, 2),
-        k = _ref57[0],
-        qty = _ref57[1];
+    }, Object.entries(itemMap).sort().map(function (_ref57) {
+      var _ref58 = _slicedToArray(_ref57, 2),
+        k = _ref58[0],
+        qty = _ref58[1];
       var _k$split3 = k.split("-"),
         _k$split4 = _slicedToArray(_k$split3, 2),
         col = _k$split4[0],
@@ -12835,21 +13218,21 @@ function TabBirmingham(_ref44) {
     })));
   })));
 }
-function TabStock(_ref58) {
-  var driStock = _ref58.driStock,
-    setDriStock = _ref58.setDriStock,
-    acceptedOffers = _ref58.acceptedOffers,
-    purchases = _ref58.purchases,
-    setPurchases = _ref58.setPurchases,
-    chinese = _ref58.chinese,
-    setChinese = _ref58.setChinese,
-    colours = _ref58.colours,
-    setOffers = _ref58.setOffers,
-    sales = _ref58.sales,
-    setSales = _ref58.setSales,
-    bhamSales = _ref58.bhamSales,
-    stock = _ref58.stock,
-    setStock = _ref58.setStock;
+function TabStock(_ref59) {
+  var driStock = _ref59.driStock,
+    setDriStock = _ref59.setDriStock,
+    acceptedOffers = _ref59.acceptedOffers,
+    purchases = _ref59.purchases,
+    setPurchases = _ref59.setPurchases,
+    chinese = _ref59.chinese,
+    setChinese = _ref59.setChinese,
+    colours = _ref59.colours,
+    setOffers = _ref59.setOffers,
+    sales = _ref59.sales,
+    setSales = _ref59.setSales,
+    bhamSales = _ref59.bhamSales,
+    stock = _ref59.stock,
+    setStock = _ref59.setStock;
   var _useState141 = useState("overview"),
     _useState142 = _slicedToArray(_useState141, 2),
     subTab = _useState142[0],
@@ -12956,10 +13339,10 @@ function TabStock(_ref58) {
           soldAfterRestore[k] = (soldAfterRestore[k] || 0) + 1;
         }
       });
-      Object.entries(requiredCount).forEach(function (_ref59) {
-        var _ref60 = _slicedToArray(_ref59, 2),
-          k = _ref60[0],
-          needed = _ref60[1];
+      Object.entries(requiredCount).forEach(function (_ref60) {
+        var _ref61 = _slicedToArray(_ref60, 2),
+          k = _ref61[0],
+          needed = _ref61[1];
         var extra = needed - (soldAfterRestore[k] || 0);
         if (extra <= 0) return;
         var lastDash = k.lastIndexOf("-");
@@ -13054,16 +13437,16 @@ function TabStock(_ref58) {
 
   // Combined demand
   var demand = {};
-  Object.entries(offerDemand).forEach(function (_ref61) {
-    var _ref62 = _slicedToArray(_ref61, 2),
-      k = _ref62[0],
-      n = _ref62[1];
+  Object.entries(offerDemand).forEach(function (_ref62) {
+    var _ref63 = _slicedToArray(_ref62, 2),
+      k = _ref63[0],
+      n = _ref63[1];
     return demand[k] = (demand[k] || 0) + n;
   });
-  Object.entries(salesDemand).forEach(function (_ref63) {
-    var _ref64 = _slicedToArray(_ref63, 2),
-      k = _ref64[0],
-      n = _ref64[1];
+  Object.entries(salesDemand).forEach(function (_ref64) {
+    var _ref65 = _slicedToArray(_ref64, 2),
+      k = _ref65[0],
+      n = _ref65[1];
     return demand[k] = (demand[k] || 0) + n;
   });
 
@@ -13187,10 +13570,10 @@ function TabStock(_ref58) {
       });
     });
   }
-  var uncovered = Object.entries(demand).filter(function (_ref65) {
-    var _ref66 = _slicedToArray(_ref65, 2),
-      k = _ref66[0],
-      n = _ref66[1];
+  var uncovered = Object.entries(demand).filter(function (_ref66) {
+    var _ref67 = _slicedToArray(_ref66, 2),
+      k = _ref67[0],
+      n = _ref67[1];
     return Math.max(0, n - (availableMap[k] || 0) - (incomingMap[k] || 0)) > 0;
   });
 
@@ -13218,11 +13601,11 @@ function TabStock(_ref58) {
     acc[k].qty++;
     return acc;
   }, {});
-  var StockTable = function StockTable(_ref67) {
-    var data = _ref67.data,
-      colourFn = _ref67.colourFn,
-      showMarkArrived = _ref67.showMarkArrived,
-      stockStatus = _ref67.stockStatus;
+  var StockTable = function StockTable(_ref68) {
+    var data = _ref68.data,
+      colourFn = _ref68.colourFn,
+      showMarkArrived = _ref68.showMarkArrived,
+      stockStatus = _ref68.stockStatus;
     return /*#__PURE__*/React.createElement("div", {
       style: {
         background: C.grey1,
@@ -13252,10 +13635,10 @@ function TabStock(_ref58) {
           letterSpacing: "0.07em"
         }
       }, h);
-    }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(data).sort().map(function (_ref68, i) {
-      var _ref69 = _slicedToArray(_ref68, 2),
-        k = _ref69[0],
-        v = _ref69[1];
+    }))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(data).sort().map(function (_ref69, i) {
+      var _ref70 = _slicedToArray(_ref69, 2),
+        k = _ref70[0],
+        v = _ref70[1];
       var demKey = normaliseColour(v.colour) + "-" + v.size;
       var dem = demand[demKey] || 0;
       var removeKey = k + "-" + (stockStatus || "in_stock");
@@ -13451,10 +13834,10 @@ function TabStock(_ref58) {
       marginBottom: 14,
       overflowX: "auto"
     }
-  }, [["overview", "Overview"], ["preorder", "Pre-ordered (" + preOrdered.length + ")"], ["sell", "To Sell (" + toSell.length + ")"], ["history", "History"]].map(function (_ref70) {
-    var _ref71 = _slicedToArray(_ref70, 2),
-      k = _ref71[0],
-      lbl = _ref71[1];
+  }, [["overview", "Overview"], ["preorder", "Pre-ordered (" + preOrdered.length + ")"], ["sell", "To Sell (" + toSell.length + ")"], ["history", "History"]].map(function (_ref71) {
+    var _ref72 = _slicedToArray(_ref71, 2),
+      k = _ref72[0],
+      lbl = _ref72[1];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       onClick: function onClick() {
@@ -13482,12 +13865,12 @@ function TabStock(_ref58) {
       flexWrap: "wrap",
       marginBottom: 14
     }
-  }, [["Pre-ordered", preOrdered.length, "on the way", C.amber], ["Ready to Sell", toSell.length, "in hand", C.green], ["Accepted Offers", acceptedOffers.length, uncovered.length > 0 ? uncovered.length + " not covered" : "all covered", C.red]].map(function (_ref72) {
-    var _ref73 = _slicedToArray(_ref72, 4),
-      lbl = _ref73[0],
-      val = _ref73[1],
-      sub = _ref73[2],
-      col = _ref73[3];
+  }, [["Pre-ordered", preOrdered.length, "on the way", C.amber], ["Ready to Sell", toSell.length, "in hand", C.green], ["Accepted Offers", acceptedOffers.length, uncovered.length > 0 ? uncovered.length + " not covered" : "all covered", C.red]].map(function (_ref73) {
+    var _ref74 = _slicedToArray(_ref73, 4),
+      lbl = _ref74[0],
+      val = _ref74[1],
+      sub = _ref74[2],
+      col = _ref74[3];
     return /*#__PURE__*/React.createElement("div", {
       key: lbl,
       style: {
@@ -13554,10 +13937,10 @@ function TabStock(_ref58) {
       textTransform: "uppercase",
       letterSpacing: "0.05em"
     }
-  }, "\u21BB Refresh")), Object.entries(demand).map(function (_ref74) {
-    var _ref75 = _slicedToArray(_ref74, 2),
-      k = _ref75[0],
-      n = _ref75[1];
+  }, "\u21BB Refresh")), Object.entries(demand).map(function (_ref75) {
+    var _ref76 = _slicedToArray(_ref75, 2),
+      k = _ref76[0],
+      n = _ref76[1];
     // Key format is colour-size - split on last hyphen to handle colours with hyphens
     var lastDash = k.lastIndexOf("-");
     var col = k.slice(0, lastDash);
@@ -13979,10 +14362,10 @@ function TabStock(_ref58) {
     // Group by itemName then sort within each group by colour+size
     var GROUP_ORDER = ["Nike Park Senior Set", "Park VII Jersey", "Park III Shorts", "Miler Top", "Challenger Shorts"];
     var grouped = {};
-    Object.entries(totalsMap).forEach(function (_ref76) {
-      var _ref77 = _slicedToArray(_ref76, 2),
-        k = _ref77[0],
-        v = _ref77[1];
+    Object.entries(totalsMap).forEach(function (_ref77) {
+      var _ref78 = _slicedToArray(_ref77, 2),
+        k = _ref78[0],
+        v = _ref78[1];
       var g = v.itemName || "Nike Park Senior Set";
       if (!grouped[g]) grouped[g] = [];
       grouped[g].push([k, v]);
@@ -13993,9 +14376,9 @@ function TabStock(_ref58) {
       var items = grouped[grp];
       if (!items || items.length === 0) return;
       var grpLabel = grp === "Nike Park Senior Set" ? "Park Senior Sets" : grp === "Park VII Jersey" ? "Park VII Jerseys" : grp === "Park III Shorts" ? "Park III Shorts" : grp === "Miler Top" ? "Miler Tops" : "Challenger Shorts";
-      var grpTotal = items.reduce(function (a, _ref78) {
-        var _ref79 = _slicedToArray(_ref78, 2),
-          v = _ref79[1];
+      var grpTotal = items.reduce(function (a, _ref79) {
+        var _ref80 = _slicedToArray(_ref79, 2),
+          v = _ref80[1];
         return a + v.preorder + v.inStock;
       }, 0);
       rows.push(/*#__PURE__*/React.createElement("tr", {
@@ -14019,10 +14402,10 @@ function TabStock(_ref58) {
       }, "(", grpTotal, " in stock)"))));
       items.sort(function (a, b) {
         return a[0].localeCompare(b[0]);
-      }).forEach(function (_ref80) {
-        var _ref81 = _slicedToArray(_ref80, 2),
-          k = _ref81[0],
-          v = _ref81[1];
+      }).forEach(function (_ref81) {
+        var _ref82 = _slicedToArray(_ref81, 2),
+          k = _ref82[0],
+          v = _ref82[1];
         var i = rowIdx++;
         var demKey = normaliseColour(v.colour) + "-" + v.size;
         var dem = demand[demKey] || 0;
@@ -14873,10 +15256,10 @@ function TabStock(_ref58) {
         gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))",
         gap: 5
       }
-    }, Object.entries(p.itemMap).sort().map(function (_ref82) {
-      var _ref83 = _slicedToArray(_ref82, 2),
-        k = _ref83[0],
-        qty = _ref83[1];
+    }, Object.entries(p.itemMap).sort().map(function (_ref83) {
+      var _ref84 = _slicedToArray(_ref83, 2),
+        k = _ref84[0],
+        qty = _ref84[1];
       var _k$split5 = k.split("-"),
         _k$split6 = _slicedToArray(_k$split5, 2),
         col = _k$split6[0],
@@ -14933,10 +15316,10 @@ function TabStock(_ref58) {
       acc[k] = (acc[k] || 0) + 1;
     });
     return acc;
-  }, {})).sort().map(function (_ref84) {
-    var _ref85 = _slicedToArray(_ref84, 2),
-      k = _ref85[0],
-      qty = _ref85[1];
+  }, {})).sort().map(function (_ref85) {
+    var _ref86 = _slicedToArray(_ref85, 2),
+      k = _ref86[0],
+      qty = _ref86[1];
     var _k$split7 = k.split("-"),
       _k$split8 = _slicedToArray(_k$split7, 2),
       col = _k$split8[0],
@@ -14985,9 +15368,9 @@ function TabStock(_ref58) {
 }
 
 // ── TAB: Cost Calculator ───────────────────────────────────────
-function TabCalc(_ref86) {
-  var chinese = _ref86.chinese,
-    setChinese = _ref86.setChinese;
+function TabCalc(_ref87) {
+  var chinese = _ref87.chinese,
+    setChinese = _ref87.setChinese;
   var _useState167 = useState(false),
     _useState168 = _slicedToArray(_useState167, 2),
     show = _useState168[0],
@@ -15089,12 +15472,12 @@ function TabCalc(_ref86) {
       gap: 10,
       marginBottom: 10
     }
-  }, [["Item Name", "item", "text", "Nike Air Force 1"], ["Colour", "colour", "text", "White"], ["Size", "size", "text", "UK9"], ["Cost MYR", "costMYR", "number", "250.00"], ["Shipping MYR", "shippingMYR", "number", "45.00"], ["Fixed fees MYR", "fixedMYR", "number", "10.00"], ["Wise Rate", "wiseRate", "number", "0.1902"], ["Note", "note", "text", "optional"]].map(function (_ref87) {
-    var _ref88 = _slicedToArray(_ref87, 4),
-      lbl = _ref88[0],
-      k = _ref88[1],
-      t = _ref88[2],
-      ph = _ref88[3];
+  }, [["Item Name", "item", "text", "Nike Air Force 1"], ["Colour", "colour", "text", "White"], ["Size", "size", "text", "UK9"], ["Cost MYR", "costMYR", "number", "250.00"], ["Shipping MYR", "shippingMYR", "number", "45.00"], ["Fixed fees MYR", "fixedMYR", "number", "10.00"], ["Wise Rate", "wiseRate", "number", "0.1902"], ["Note", "note", "text", "optional"]].map(function (_ref88) {
+    var _ref89 = _slicedToArray(_ref88, 4),
+      lbl = _ref89[0],
+      k = _ref89[1],
+      t = _ref89[2],
+      ph = _ref89[3];
     return /*#__PURE__*/React.createElement("div", {
       key: k
     }, /*#__PURE__*/React.createElement("div", {
@@ -15544,9 +15927,9 @@ function _supaLoadAll() {
         case 3:
           rows = _context8.v;
           out = {};
-          rows.forEach(function (_ref92) {
-            var key = _ref92.key,
-              value = _ref92.value;
+          rows.forEach(function (_ref93) {
+            var key = _ref93.key,
+              value = _ref93.value;
             return out[key] = value;
           });
           return _context8.a(2, out);
@@ -15671,10 +16054,14 @@ function App() {
     _useSupabase8 = _slicedToArray(_useSupabase7, 2),
     customers = _useSupabase8[0],
     setCustomers = _useSupabase8[1];
-  var _useSupabase9 = useSupabase("zak_mappings", INIT_MAPPINGS, loadedRef),
+  var _useSupabase9 = useSupabase("zak_listing_drafts", {}, loadedRef),
     _useSupabase0 = _slicedToArray(_useSupabase9, 2),
-    mappings = _useSupabase0[0],
-    setMappings = _useSupabase0[1];
+    listingDrafts = _useSupabase0[0],
+    setListingDrafts = _useSupabase0[1];
+  var _useSupabase1 = useSupabase("zak_mappings", INIT_MAPPINGS, loadedRef),
+    _useSupabase10 = _slicedToArray(_useSupabase1, 2),
+    mappings = _useSupabase10[0],
+    setMappings = _useSupabase10[1];
 
   // ── Load all data from Supabase on mount (single round-trip) ──
   var mountedRef = useRef(false); // separate guard to prevent double-load
@@ -15824,6 +16211,9 @@ function App() {
   }, [offers]);
   var actualCost = accepted.length * SET_COST;
   var TABS = [{
+    id: "listings",
+    label: "Listings"
+  }, {
     id: "sales",
     label: "Sales"
   }, {
@@ -16245,7 +16635,13 @@ function App() {
     style: {
       padding: 18
     }
-  }, tab === "mappings" && /*#__PURE__*/React.createElement(TabMappings, {
+  }, tab === "listings" && /*#__PURE__*/React.createElement(TabListings, {
+    sales: sales,
+    driStock: driStock,
+    purchases: purchases,
+    listingDrafts: listingDrafts,
+    setListingDrafts: setListingDrafts
+  }), tab === "mappings" && /*#__PURE__*/React.createElement(TabMappings, {
     mappings: mappings,
     setMappings: setMappings,
     colours: colours
