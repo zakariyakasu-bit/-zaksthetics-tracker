@@ -13018,7 +13018,7 @@ function TabStock(_ref58) {
   })));
   var salesDemand = {};
   (sales || []).filter(function (s) {
-    return s.status === "awaiting_stock" && (s.itemType === "drifit" || !s.itemType) && s.platform !== "Birms";
+    return ["awaiting_stock", "pending_delivery"].includes(s.status) && (s.itemType === "drifit" || !s.itemType) && s.platform !== "Birms";
   }).forEach(function (s) {
     var k = normaliseColour(s.colour) + "-" + s.size;
     salesDemand[k] = (salesDemand[k] || 0) + 1;
