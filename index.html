@@ -2357,16 +2357,16 @@ function TabListings(_ref4) {
       return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, dk, _objectSpread(_objectSpread({}, getState(key)), updates)));
     });
   }
-  function getStatus(listed, d1, d2, inHand, incoming) {
+  function getStatus(listed, d1, d2, inHand, incoming, available) {
     var draftCount = (d1 ? 1 : 0) + (d2 ? 1 : 0);
     if (listed) {
-      if (inHand === 0 && incoming === 0) return {
+      if (available === 0 && incoming === 0) return {
         code: "listed-order",
         label: "🔴 Order Now",
-        sub: "Live but no stock behind it",
+        sub: "Live but no available stock",
         col: C.red
       };
-      if (inHand === 0 && incoming > 0) return {
+      if (available === 0 && incoming > 0) return {
         code: "listed-incoming",
         label: "🔵 Listed · Incoming",
         sub: "Stock on its way (".concat(incoming, ")"),
@@ -2375,18 +2375,18 @@ function TabListings(_ref4) {
       return {
         code: "listed",
         label: "🟢 Listed",
-        sub: "Stock in hand (".concat(inHand, ")"),
+        sub: "".concat(available, " available"),
         col: C.green
       };
     }
     if (draftCount === 2) {
-      if (inHand === 0 && incoming === 0) return {
+      if (available === 0 && incoming === 0) return {
         code: "order-list",
         label: "🔴 Order & Mark as Listed",
         sub: "Drafts ready — order stock then list",
         col: C.red
       };
-      if (inHand === 0 && incoming > 0) return {
+      if (available === 0 && incoming > 0) return {
         code: "incoming-list",
         label: "🟠 Mark as Listed",
         sub: "Stock incoming (".concat(incoming, ")"),
@@ -2395,7 +2395,7 @@ function TabListings(_ref4) {
       return {
         code: "mark-listed",
         label: "🟠 Mark as Listed",
-        sub: "Stock in hand (".concat(inHand, ") \u2014 go live"),
+        sub: "".concat(available, " available \u2014 go live"),
         col: C.amber
       };
     }
@@ -2405,7 +2405,7 @@ function TabListings(_ref4) {
       sub: "Need 2 drafts before listing",
       col: C.amber
     };
-    if (inHand === 0 && incoming === 0) return {
+    if (available === 0 && incoming === 0) return {
       code: "order-draft",
       label: "🔴 Order & Create 2 Drafts",
       sub: "No stock, no drafts",
@@ -2414,7 +2414,7 @@ function TabListings(_ref4) {
     return {
       code: "create-drafts",
       label: "🔴 Create 2 Drafts",
-      sub: "Stock in hand (".concat(inHand, ")"),
+      sub: "".concat(available, " available"),
       col: C.red
     };
   }
@@ -2435,12 +2435,14 @@ function TabListings(_ref4) {
       itemName = v.itemName;
     var inHand = inHandMap[key] || 0;
     var incoming = incomingMap[key] || 0;
+    var committed = committedMap[key] || 0;
+    var available = Math.max(0, inHand - committed);
     var _getState = getState(key),
       draft1 = _getState.draft1,
       draft2 = _getState.draft2,
       listed = _getState.listed;
-    var status = getStatus(listed, draft1, draft2, inHand, incoming);
-    var hasStock = inHand > 0 || incoming > 0;
+    var status = getStatus(listed, draft1, draft2, inHand, incoming, available);
+    var hasStock = available > 0 || incoming > 0;
     allRows.push({
       key: key,
       colour: colour,
@@ -2448,6 +2450,8 @@ function TabListings(_ref4) {
       itemName: itemName,
       inHand: inHand,
       incoming: incoming,
+      committed: committed,
+      available: available,
       draft1: draft1,
       draft2: draft2,
       listed: listed,
@@ -2498,7 +2502,7 @@ function TabListings(_ref4) {
       style: {
         borderBottom: "1px solid ".concat(C.grey2)
       }
-    }, ["Colour", "Size", "In Hand", "Incoming", "Draft 1", "Draft 2", "Listed", "Status", ""].map(function (h) {
+    }, ["Colour", "Size", "In Hand", "Available", "Incoming", "Draft 1", "Draft 2", "Listed", "Status", ""].map(function (h) {
       return /*#__PURE__*/React.createElement("th", {
         key: h,
         style: {
@@ -2536,6 +2540,13 @@ function TabListings(_ref4) {
           color: r.inHand > 0 ? C.green : C.grey5
         }
       }, r.inHand || "—"), /*#__PURE__*/React.createElement("td", {
+        style: {
+          padding: "8px 9px",
+          fontFamily: "monospace",
+          color: r.available > 0 ? C.green : C.grey5,
+          fontWeight: r.available > 0 ? 700 : 400
+        }
+      }, r.available || "—"), /*#__PURE__*/React.createElement("td", {
         style: {
           padding: "8px 9px",
           fontFamily: "monospace",
