@@ -2296,13 +2296,9 @@ function TabListings(_ref4) {
     purchases = _ref4.purchases,
     listingDrafts = _ref4.listingDrafts,
     setListingDrafts = _ref4.setListingDrafts;
-  var COLOUR_MAP = {
-    "Pine Green-Black": "Green/Black",
-    "Bright Crimson": "Crimson",
-    "White-Black": "White/Black"
-  };
+  // Use module-level normaliseColour for consistent mapping
   function nc(c) {
-    return (COLOUR_MAP[c] || c || "").trim();
+    return normaliseColour((c || "").trim());
   }
 
   // Build set of all ever-stocked items (London only — Birms excluded)
@@ -16438,8 +16434,10 @@ function App() {
       if (remote.zak_stock && remote.zak_stock_version === CURRENT_VERSION) {
         var _remote$zak_purchases;
         var fixedStock = remote.zak_stock.map(function (s) {
-          return s.colour && s.colour !== s.colour.trim() ? _objectSpread(_objectSpread({}, s), {}, {
-            colour: s.colour.trim()
+          var trimmed = (s.colour || "").trim();
+          var normalised = normaliseColour(trimmed);
+          return trimmed !== s.colour || normalised !== trimmed ? _objectSpread(_objectSpread({}, s), {}, {
+            colour: normalised
           }) : s;
         });
         // ── Repair v2: remove known duplicate/excess stock items ──
