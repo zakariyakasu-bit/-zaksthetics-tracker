@@ -16436,11 +16436,106 @@ function App() {
       }
       // Stock — use stored if version matches, else migrate from DRI_STOCK
       if (remote.zak_stock && remote.zak_stock_version === CURRENT_VERSION) {
+        var _remote$zak_purchases;
         var fixedStock = remote.zak_stock.map(function (s) {
           return s.colour && s.colour !== s.colour.trim() ? _objectSpread(_objectSpread({}, s), {}, {
             colour: s.colour.trim()
           }) : s;
         });
+        // ── Repair v2: remove known duplicate/excess stock items ──
+        var EXCESS_IDS_V2 = new Set(["dri-v9-26-1782605977712", "dri-v9-27-1782605977712", "dri-v9-28-1782605977712", "dri-v9-29-1782605977712", "dri-v9-30-1782605977712", "dri-v9-31-1782605977712", "dri-v9-2-1782605977712", "dri-v9-37-1782605977712", "dri-v9-38-1782605977712", "dri-v9-3-1782605977712", "dri-v9-6-1782605977712", "dri-v9-7-1782605977712", "dri-v9-14-1782605977712", "dri-v9-15-1782605977712", "dri-v9-16-1782605977712", "dri-v9-17-1782605977712", "dri-v9-56-1782605977712", "dri-v9-5-1782605977712", "dri-v9-8-1782605977712", "dri-v9-9-1782605977712", "dri-v9-20-1782605977712", "dri-v9-21-1782605977712", "dri-v9-22-1782605977712", "dri-v9-54-1782605977712", "dri-v9-55-1782605977712", "dri-v9-11-1782605977712", "dri-v9-69-1782605977712", "dri-v9-70-1782605977712", "dri-v9-12-1782605977712", "dri-v9-58-1782605977712", "dri-v9-59-1782605977712", "dri-v9-66-1782605977712", "dri-v9-18-1782605977712", "dri-v9-19-1782605977712", "dri-v9-23-1782605977712", "dri-v9-25-1782605977712", "dri-v9-33-1782605977712", "dri-v9-34-1782605977712", "dri-v9-35-1782605977712", "dri-v9-36-1782605977712", "dri-v9-39-1782605977712", "dri-v9-40-1782605977712", "dri-v9-60-1782605977712", "dri-v9-61-1782605977712", "dri-v9-64-1782605977712", "dri-v9-68-1782605977712", "dri-v9-67-1782605977712", "dri-v9-71-1782605977712", "dri-v9-72-1782605977712", 1782945653754.9536, 1782945653754.7463, 1782945653754.1829]);
+        var beforeCount = fixedStock.length;
+        fixedStock = fixedStock.filter(function (s) {
+          return !EXCESS_IDS_V2.has(String(s.id));
+        });
+        if (fixedStock.length < beforeCount) console.log("Stock repair v2: removed " + (beforeCount - fixedStock.length) + " duplicate items");
+
+        // ── Repair v2: add missing Navy XL and Green/Black L ──
+        var hasNavyXL = fixedStock.some(function (s) {
+          return s.colour === "Navy" && s.size === "XL" && s.location === "you" && s.status === "in_stock";
+        });
+        if (!hasNavyXL || fixedStock.filter(function (s) {
+          return s.colour === "Navy" && s.size === "XL" && s.location === "you";
+        }).length < 12) {
+          var navyXLCount = fixedStock.filter(function (s) {
+            return s.colour === "Navy" && s.size === "XL" && s.location === "you";
+          }).length;
+          if (navyXLCount < 12) {
+            fixedStock.push({
+              id: "repair-navy-xl-1",
+              colour: "Navy",
+              size: "XL",
+              itemName: "Nike Park Senior Set",
+              stockType: "set",
+              status: "in_stock",
+              location: "you",
+              costGBP: 22.95,
+              supplier: "Newitts",
+              problem: false
+            });
+            console.log("Stock repair v2: added missing Navy XL");
+          }
+        }
+        var gbLCount = fixedStock.filter(function (s) {
+          return s.colour === "Green/Black" && s.size === "L" && s.location === "you";
+        }).length;
+        if (gbLCount < 5) {
+          fixedStock.push({
+            id: "repair-gb-l-1",
+            colour: "Green/Black",
+            size: "L",
+            itemName: "Nike Park Senior Set",
+            stockType: "set",
+            status: "in_stock",
+            location: "you",
+            costGBP: 22.95,
+            supplier: "Newitts",
+            problem: false
+          });
+          console.log("Stock repair v2: added missing Green/Black L");
+        }
+
+        // ── Ongoing: remove stock items where purchaseId points to a purchase
+        // that no longer lists that colour+size (result of purchase edits)
+        if (((_remote$zak_purchases = remote.zak_purchases) === null || _remote$zak_purchases === void 0 ? void 0 : _remote$zak_purchases.length) > 0) {
+          var COLOUR_MAP_R = {
+            "Pine Green-Black": "Green/Black",
+            "Bright Crimson": "Crimson",
+            "White-Black": "White/Black"
+          };
+          var ncR = function ncR(c) {
+            return (COLOUR_MAP_R[c] || c || "").trim();
+          };
+          var purchaseItemMap = {};
+          remote.zak_purchases.filter(function (p) {
+            return !p.deleted;
+          }).forEach(function (p) {
+            if (!p.id) return;
+            purchaseItemMap[p.id] = {};
+            (p.items || []).forEach(function (item) {
+              var k = ncR(item.colour || "") + "|" + (item.size || "");
+              purchaseItemMap[p.id][k] = (purchaseItemMap[p.id][k] || 0) + (item.qty || 1);
+            });
+          });
+          var toRemoveIds = new Set();
+          var seenCount = {};
+          fixedStock.forEach(function (s) {
+            var _purchaseItemMap$s$pu;
+            if (!s.purchaseId || s.location === "birmingham" || s.problem) return;
+            var col = ncR(s.colour || "");
+            var ck = col + "|" + (s.size || "");
+            var pk = s.purchaseId + "|" + ck;
+            var allowed = ((_purchaseItemMap$s$pu = purchaseItemMap[s.purchaseId]) === null || _purchaseItemMap$s$pu === void 0 ? void 0 : _purchaseItemMap$s$pu[ck]) || 0;
+            seenCount[pk] = (seenCount[pk] || 0) + 1;
+            if (seenCount[pk] > allowed) toRemoveIds.add(s.id);
+          });
+          if (toRemoveIds.size > 0) {
+            console.log("Stock repair ongoing: removing " + toRemoveIds.size + " orphaned items");
+            fixedStock = fixedStock.filter(function (s) {
+              return !toRemoveIds.has(s.id);
+            });
+          }
+        }
         // ── Repair: correct Turquoise M → Turq/White M (INIT data correction) ──
         fixedStock = fixedStock.map(function (s) {
           return s.colour === "Turquoise" && s.size === "M" && s.itemName === "Nike Park Senior Set" && s.location === "you" ? _objectSpread(_objectSpread({}, s), {}, {
