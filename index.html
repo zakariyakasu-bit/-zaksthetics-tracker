@@ -16615,6 +16615,7 @@ function App() {
       if (remote.zak_purchases) setPurchases(remote.zak_purchases);
       if (remote.zak_customers) setCustomers(remote.zak_customers);
       if (remote.zak_mappings) setMappings(remote.zak_mappings);
+      if (remote.zak_listing_drafts) setListingDrafts(remote.zak_listing_drafts);
       loadedRef.current = true; // now allow all useEffect writes to Supabase
       setLoading(false);
     });
