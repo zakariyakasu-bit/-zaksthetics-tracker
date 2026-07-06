@@ -311,7 +311,7 @@ var INIT_PURCHASES = [
   paymentStatus: "paid",
   amountPaid: 79.80,
   items: [{
-    colour: "Pine Green-Black",
+    colour: "Green/Black",
     size: "M",
     type: "set",
     cost: 22.95,
@@ -571,19 +571,19 @@ var INIT_PURCHASES = [
     cost: 22.95,
     itemName: "Nike Park Senior Set"
   }, {
-    colour: "Pine Green-Black",
+    colour: "Green/Black",
     size: "L",
     type: "set",
     cost: 22.95,
     itemName: "Nike Park Senior Set"
   }, {
-    colour: "Pine Green-Black",
+    colour: "Green/Black",
     size: "L",
     type: "set",
     cost: 22.95,
     itemName: "Nike Park Senior Set"
   }, {
-    colour: "Pine Green-Black",
+    colour: "Green/Black",
     size: "M",
     type: "set",
     cost: 22.95,
@@ -614,13 +614,13 @@ var INIT_PURCHASES = [
   paymentStatus: "paid",
   amountPaid: 79.60,
   items: [{
-    colour: "Pine Green-Black",
+    colour: "Green/Black",
     size: "M",
     type: "set",
     cost: 22.95,
     itemName: "Nike Park Senior Set"
   }, {
-    colour: "Pine Green-Black",
+    colour: "Green/Black",
     size: "M",
     type: "set",
     cost: 22.95,
@@ -632,7 +632,7 @@ var INIT_PURCHASES = [
     cost: 10.75,
     itemName: "Park III Shorts"
   }, {
-    colour: "Pine Green-Black",
+    colour: "Green/Black",
     size: "L",
     type: "set",
     cost: 22.95,
@@ -688,7 +688,7 @@ var INIT_PURCHASES = [
   paymentStatus: "paid",
   amountPaid: 83.70,
   items: [{
-    colour: "Pine Green-Black",
+    colour: "Green/Black",
     size: "M",
     type: "set",
     cost: 22.95,
@@ -1433,7 +1433,7 @@ var DRI_STOCK = [
 },
 // Purchase 4 - SALE-1902220 - 11 Jun - London
 {
-  colour: "Pine Green-Black",
+  colour: "Green/Black",
   size: "M",
   problem: false,
   status: "in_stock",
@@ -1866,7 +1866,7 @@ var DRI_STOCK = [
   costGBP: 22.95,
   supplier: "Newitts"
 }, {
-  colour: "Pine Green-Black",
+  colour: "Green/Black",
   size: "L",
   problem: false,
   status: "in_stock",
@@ -1877,7 +1877,7 @@ var DRI_STOCK = [
   costGBP: 22.95,
   supplier: "Newitts"
 }, {
-  colour: "Pine Green-Black",
+  colour: "Green/Black",
   size: "L",
   problem: false,
   status: "in_stock",
@@ -1888,7 +1888,7 @@ var DRI_STOCK = [
   costGBP: 22.95,
   supplier: "Newitts"
 }, {
-  colour: "Pine Green-Black",
+  colour: "Green/Black",
   size: "M",
   problem: false,
   status: "in_stock",
@@ -1923,7 +1923,7 @@ var DRI_STOCK = [
 },
 // Purchase 7 - SALE-1903949 - 16 Jun - London
 {
-  colour: "Pine Green-Black",
+  colour: "Green/Black",
   size: "M",
   problem: false,
   status: "in_stock",
@@ -1934,7 +1934,7 @@ var DRI_STOCK = [
   costGBP: 22.95,
   supplier: "Newitts"
 }, {
-  colour: "Pine Green-Black",
+  colour: "Green/Black",
   size: "M",
   problem: false,
   status: "in_stock",
@@ -1956,7 +1956,7 @@ var DRI_STOCK = [
   costGBP: 10.75,
   supplier: "Newitts"
 }, {
-  colour: "Pine Green-Black",
+  colour: "Green/Black",
   size: "L",
   problem: false,
   status: "in_stock",
@@ -2015,7 +2015,7 @@ var DRI_STOCK = [
 },
 // Purchase 9 - SALE-1905969 - 22 Jun - London
 {
-  colour: "Pine Green-Black",
+  colour: "Green/Black",
   size: "M",
   problem: false,
   status: "in_stock",
@@ -3296,20 +3296,20 @@ function TabDashboard(_ref1) {
   driStock.filter(function (s) {
     return !s.problem;
   }).forEach(function (s) {
-    return stockedKeys.add(s.colour + "|" + s.size + "|" + (s.itemName || ""));
+    return stockedKeys.add(normaliseColour(s.colour) + "|" + s.size + "|" + (s.itemName || ""));
   });
   var soldCount = {};
   allDrifit.filter(function (s) {
     return ["completed", "shipped", "pending_delivery"].includes(s.status);
   }).forEach(function (s) {
-    var k = s.colour + "|" + s.size + "|" + (s.itemName || "");
+    var k = normaliseColour(s.colour) + "|" + s.size + "|" + (s.itemName || "");
     soldCount[k] = (soldCount[k] || 0) + 1;
   });
   var boughtCount = {};
   driStock.filter(function (s) {
     return !s.problem;
   }).forEach(function (s) {
-    var k = s.colour + "|" + s.size + "|" + (s.itemName || "");
+    var k = normaliseColour(s.colour) + "|" + s.size + "|" + (s.itemName || "");
     boughtCount[k] = (boughtCount[k] || 0) + 1;
   });
   var perfRows = _toConsumableArray(stockedKeys).map(function (k) {
@@ -3331,7 +3331,7 @@ function TabDashboard(_ref1) {
 
   // ── Colours to try ──────────────────────────────────────────────
   var everStockedColours = new Set(driStock.map(function (s) {
-    return s.colour;
+    return normaliseColour(s.colour);
   }));
   var toTry = [].concat(_toConsumableArray(_toConsumableArray(SET_COLOURS).filter(function (c) {
     return !everStockedColours.has(c);
@@ -16505,7 +16505,7 @@ function App() {
           }) : s;
         });
         // ── Repair v2: remove known duplicate/excess stock items ──
-        var EXCESS_IDS_V2 = new Set(["dri-v9-26-1782605977712", "dri-v9-27-1782605977712", "dri-v9-28-1782605977712", "dri-v9-29-1782605977712", "dri-v9-30-1782605977712", "dri-v9-31-1782605977712", "dri-v9-2-1782605977712", "dri-v9-37-1782605977712", "dri-v9-38-1782605977712", "dri-v9-3-1782605977712", "dri-v9-6-1782605977712", "dri-v9-7-1782605977712", "dri-v9-14-1782605977712", "dri-v9-15-1782605977712", "dri-v9-16-1782605977712", "dri-v9-17-1782605977712", "dri-v9-56-1782605977712", "dri-v9-5-1782605977712", "dri-v9-8-1782605977712", "dri-v9-9-1782605977712", "dri-v9-20-1782605977712", "dri-v9-21-1782605977712", "dri-v9-22-1782605977712", "dri-v9-54-1782605977712", "dri-v9-55-1782605977712", "dri-v9-11-1782605977712", "dri-v9-69-1782605977712", "dri-v9-70-1782605977712", "dri-v9-12-1782605977712", "dri-v9-58-1782605977712", "dri-v9-59-1782605977712", "dri-v9-66-1782605977712", "dri-v9-18-1782605977712", "dri-v9-19-1782605977712", "dri-v9-23-1782605977712", "dri-v9-25-1782605977712", "dri-v9-33-1782605977712", "dri-v9-34-1782605977712", "dri-v9-35-1782605977712", "dri-v9-36-1782605977712", "dri-v9-39-1782605977712", "dri-v9-40-1782605977712", "dri-v9-60-1782605977712", "dri-v9-61-1782605977712", "dri-v9-64-1782605977712", "dri-v9-68-1782605977712", "dri-v9-67-1782605977712", "dri-v9-71-1782605977712", "dri-v9-72-1782605977712", 1782945653754.9536, 1782945653754.7463, 1782945653754.1829]);
+        var EXCESS_IDS_V2 = new Set(["dri-v9-26-1782605977712", "dri-v9-27-1782605977712", "dri-v9-28-1782605977712", "dri-v9-29-1782605977712", "dri-v9-30-1782605977712", "dri-v9-31-1782605977712", "dri-v9-2-1782605977712", "dri-v9-37-1782605977712", "dri-v9-38-1782605977712", "dri-v9-3-1782605977712", "dri-v9-6-1782605977712", "dri-v9-7-1782605977712", "dri-v9-14-1782605977712", "dri-v9-15-1782605977712", "dri-v9-16-1782605977712", "dri-v9-17-1782605977712", "dri-v9-56-1782605977712", "dri-v9-5-1782605977712", "dri-v9-8-1782605977712", "dri-v9-9-1782605977712", "dri-v9-20-1782605977712", "dri-v9-21-1782605977712", "dri-v9-22-1782605977712", "dri-v9-54-1782605977712", "dri-v9-55-1782605977712", "dri-v9-11-1782605977712", "dri-v9-69-1782605977712", "dri-v9-70-1782605977712", "dri-v9-12-1782605977712", "dri-v9-58-1782605977712", "dri-v9-59-1782605977712", "dri-v9-66-1782605977712", "dri-v9-18-1782605977712", "dri-v9-19-1782605977712", "dri-v9-23-1782605977712", "dri-v9-25-1782605977712", "dri-v9-33-1782605977712", "dri-v9-34-1782605977712", "dri-v9-35-1782605977712", "dri-v9-36-1782605977712", "dri-v9-39-1782605977712", "dri-v9-40-1782605977712", "dri-v9-60-1782605977712", "dri-v9-61-1782605977712", "dri-v9-64-1782605977712", "dri-v9-68-1782605977712", "dri-v9-67-1782605977712", "dri-v9-71-1782605977712", "dri-v9-72-1782605977712", 1782945653754.9536, 1782945653754.7463, 1782945653754.1829, "repair-gb-l-1", "repair-navy-xl-1"]);
         var beforeCount = fixedStock.length;
         fixedStock = fixedStock.filter(function (s) {
           return !EXCESS_IDS_V2.has(String(s.id));
