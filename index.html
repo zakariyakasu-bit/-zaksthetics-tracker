@@ -2324,6 +2324,21 @@ function TabListings(_ref4) {
     if (s.status === "in_stock") inHandMap[key] = (inHandMap[key] || 0) + 1;
     if (s.status === "preorder") incomingMap[key] = (incomingMap[key] || 0) + 1;
   });
+  // Subtract active Vinted sales (any status except completed/shipped) from inHand
+  // These items are already committed — don't suggest listing them
+  var committedMap = {};
+  (sales || []).filter(function (s) {
+    return !["completed", "shipped"].includes(s.status) && s.platform !== "Birms" && (s.itemType === "drifit" || !s.itemType);
+  }).forEach(function (s) {
+    var key = nc(s.colour) + "|" + s.size + "|" + (s.itemName || "Nike Park Senior Set");
+    committedMap[key] = (committedMap[key] || 0) + 1;
+  });
+  // Available = in_stock minus committed (floor at 0)
+  Object.keys(committedMap).forEach(function (key) {
+    if (inHandMap[key]) {
+      inHandMap[key] = Math.max(0, inHandMap[key] - committedMap[key]);
+    }
+  });
   function getDraftKey(key) {
     return key.replace(/\|/g, "-");
   }
