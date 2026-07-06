@@ -9445,11 +9445,11 @@ function TabPurchases(_ref40) {
             // Try to match existing purchase - invoice number first, then total amount
             totalIncVAT = extracted.vatDetected && !extracted.vatIncluded ? extracted.subtotal * VAT_RATE : extracted.total;
             matched = allPurchases.find(function (p) {
-              var _p$items5;
+              var _p$items6;
               // Match by invoice number first (most reliable)
               if (extracted.invoiceNumber && p.invoiceNumber && p.invoiceNumber.toLowerCase() === extracted.invoiceNumber.toLowerCase()) return true;
               // Match by total amount within £2 tolerance
-              var pTotal = p.amountPaid || ((_p$items5 = p.items) === null || _p$items5 === void 0 ? void 0 : _p$items5.reduce(function (s, i) {
+              var pTotal = p.amountPaid || ((_p$items6 = p.items) === null || _p$items6 === void 0 ? void 0 : _p$items6.reduce(function (s, i) {
                 return s + i.cost;
               }, 0)) + (p.delivery || 0);
               return Math.abs(pTotal - totalIncVAT) < 2.00;
@@ -9631,6 +9631,58 @@ function TabPurchases(_ref40) {
         gap: 7
       }
     }, /*#__PURE__*/React.createElement("button", {
+      onClick: function onClick() {
+        if (!window.confirm("Rebuild all purchase-linked stock from scratch?\n\nINIT stock (dri-v9-*) is preserved.\nHit ↻ Refresh on Ldn Stk after to reconcile sold counts.")) return;
+        var now = new Date().toISOString().slice(0, 10);
+        setDriStock(function (prev) {
+          var initItems = prev.filter(function (s) {
+            return !s.purchaseId;
+          });
+          var newStock = [];
+          allPurchases.forEach(function (p) {
+            var _p$items2;
+            if (!((_p$items2 = p.items) !== null && _p$items2 !== void 0 && _p$items2.length)) return;
+            var nowDelivered = p.deliveryStatus === "delivered";
+            var loc = (p.address || "London") === "Birmingham" ? "birmingham" : "you";
+            p.items.forEach(function (item) {
+              var qty = item.qty || 1;
+              var col = normaliseColour((item.colour || "").trim());
+              var iName = item.itemName || "Nike Park Senior Set";
+              var cost = getItemFromColour(col, iName).cost || SET_COST;
+              var sType = iName === "Park VII Jersey" ? "top" : iName === "Park III Shorts" ? "shorts" : iName === "Miler Top" ? "top" : iName === "Challenger Shorts" ? "shorts" : "set";
+              for (var i = 0; i < qty; i++) {
+                newStock.push({
+                  id: Date.now() + Math.random(),
+                  colour: col,
+                  size: item.size,
+                  itemName: iName,
+                  stockType: sType,
+                  status: nowDelivered ? "in_stock" : "preorder",
+                  location: loc,
+                  costGBP: cost,
+                  supplier: "Newitts",
+                  orderedDate: p.date || now,
+                  problem: false,
+                  purchaseId: p.id
+                });
+              }
+            });
+          });
+          return [].concat(_toConsumableArray(initItems), newStock);
+        });
+      },
+      style: {
+        background: "rgba(245,158,11,0.15)",
+        border: "1px solid ".concat(C.amber),
+        color: C.amber,
+        borderRadius: 2,
+        padding: "4px 10px",
+        fontSize: 10,
+        fontWeight: 700,
+        cursor: "pointer",
+        textTransform: "uppercase"
+      }
+    }, "\u21BB Rebuild All Stock"), /*#__PURE__*/React.createElement("button", {
       style: BS,
       onClick: function onClick() {
         setOrderLines([{
@@ -10743,8 +10795,8 @@ function TabPurchases(_ref40) {
     if (filterStatus !== "all" && (p.paymentStatus || "paid") !== filterStatus) return false;
     return true;
   }).map(function (p, idx) {
-    var _p$items2, _p$items3, _p$items4;
-    var total = p.amountPaid || ((_p$items2 = p.items) === null || _p$items2 === void 0 ? void 0 : _p$items2.reduce(function (s, i) {
+    var _p$items3, _p$items4, _p$items5;
+    var total = p.amountPaid || ((_p$items3 = p.items) === null || _p$items3 === void 0 ? void 0 : _p$items3.reduce(function (s, i) {
       return s + i.cost * (i.qty || 1);
     }, 0)) || 0;
     var isEditing = editPurchaseId === p.id;
@@ -10814,7 +10866,7 @@ function TabPurchases(_ref40) {
         color: C.grey5,
         fontSize: 12
       }
-    }, ((_p$items3 = p.items) === null || _p$items3 === void 0 ? void 0 : _p$items3.reduce(function (t, i) {
+    }, ((_p$items4 = p.items) === null || _p$items4 === void 0 ? void 0 : _p$items4.reduce(function (t, i) {
       return t + (i.qty || 1);
     }, 0)) || 0, " items \xB7 ", p.address, " \xB7 \xA3", total.toFixed(2))), /*#__PURE__*/React.createElement("div", {
       style: {
@@ -11530,7 +11582,7 @@ function TabPurchases(_ref40) {
         gap: 5,
         marginTop: 8
       }
-    }, (_p$items4 = p.items) === null || _p$items4 === void 0 ? void 0 : _p$items4.map(function (item, j) {
+    }, (_p$items5 = p.items) === null || _p$items5 === void 0 ? void 0 : _p$items5.map(function (item, j) {
       return /*#__PURE__*/React.createElement("div", {
         key: j,
         style: {
