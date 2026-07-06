@@ -2333,12 +2333,10 @@ function TabListings(_ref4) {
     var key = nc(s.colour) + "|" + s.size + "|" + (s.itemName || "Nike Park Senior Set");
     committedMap[key] = (committedMap[key] || 0) + 1;
   });
-  // Available = in_stock minus committed (floor at 0)
-  Object.keys(committedMap).forEach(function (key) {
-    if (inHandMap[key]) {
-      inHandMap[key] = Math.max(0, inHandMap[key] - committedMap[key]);
-    }
-  });
+  // NOTE: inHandMap is left as the raw in_stock count here.
+  // "available" (inHand - committed) is computed once, downstream,
+  // when building each row — do not subtract committed here too,
+  // or every active sale gets double-counted against availability.
   function getDraftKey(key) {
     return key.replace(/\|/g, "-");
   }
