@@ -16529,48 +16529,7 @@ function App() {
         if (fixedStock.length < beforeCount) console.log("Stock repair v2: removed " + (beforeCount - fixedStock.length) + " duplicate items");
 
         // ── Repair v2: add missing Navy XL and Green/Black L ──
-        var navyXLCount = fixedStock.filter(function (s) {
-          return s.colour === "Navy" && s.size === "XL" && s.location === "you";
-        }).length;
-        var hasNavyRepair = fixedStock.some(function (s) {
-          return s.id === "repair-navy-xl-1";
-        });
-        if (navyXLCount < 12 && !hasNavyRepair) {
-          fixedStock.push({
-            id: "repair-navy-xl-1",
-            colour: "Navy",
-            size: "XL",
-            itemName: "Nike Park Senior Set",
-            stockType: "set",
-            status: "in_stock",
-            location: "you",
-            costGBP: 22.95,
-            supplier: "Newitts",
-            problem: false
-          });
-          console.log("Stock repair v2: added missing Navy XL");
-        }
-        var gbLCount = fixedStock.filter(function (s) {
-          return s.colour === "Green/Black" && s.size === "L" && s.location === "you";
-        }).length;
-        var hasGbRepair = fixedStock.some(function (s) {
-          return s.id === "repair-gb-l-1";
-        });
-        if (gbLCount < 5 && !hasGbRepair) {
-          fixedStock.push({
-            id: "repair-gb-l-1",
-            colour: "Green/Black",
-            size: "L",
-            itemName: "Nike Park Senior Set",
-            stockType: "set",
-            status: "in_stock",
-            location: "you",
-            costGBP: 22.95,
-            supplier: "Newitts",
-            problem: false
-          });
-          console.log("Stock repair v2: added missing Green/Black L");
-        }
+        // repair-navy-xl-1 and repair-gb-l-1 blocks removed — purchases now account for correct stock
 
         // ── Ongoing: remove stock items where purchaseId points to a purchase
         // that no longer lists that colour+size (result of purchase edits)
