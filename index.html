@@ -16407,15 +16407,42 @@ function useSupabase(key, initialValue, readyRef) {
     state = _useState174[0],
     setState = _useState174[1];
   var isFirst = useRef(true);
+  var stateRef = useRef(state);
+  var pendingWrite = useRef(false);
+  useEffect(function () {
+    stateRef.current = state;
+  }, [state]);
   useEffect(function () {
     // Skip the very first render (initial value) and skip if not loaded yet
     if (isFirst.current) {
       isFirst.current = false;
       return;
     }
-    if (readyRef && !readyRef.current) return;
+    if (readyRef && !readyRef.current) {
+      // Not ready yet — do NOT drop this write. Flag it so the catch-up
+      // poller below flushes it the moment the app finishes loading.
+      pendingWrite.current = true;
+      return;
+    }
+    pendingWrite.current = false;
     supaSet(key, state);
   }, [key, state]);
+  // Catch-up flush: if a write was skipped while not-ready, retry once
+  // readyRef flips true. Prevents silent, permanent write loss (July 2026).
+  useEffect(function () {
+    if (!readyRef) return;
+    var interval = setInterval(function () {
+      if (!readyRef.current) return;
+      if (pendingWrite.current) {
+        pendingWrite.current = false;
+        supaSet(key, stateRef.current);
+      }
+      clearInterval(interval);
+    }, 250);
+    return function () {
+      clearInterval(interval);
+    };
+  }, [key, readyRef]);
   function setValue(value) {
     setState(function (prev) {
       return typeof value === "function" ? value(prev) : value;
