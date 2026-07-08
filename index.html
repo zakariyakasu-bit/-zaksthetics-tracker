@@ -1032,6 +1032,51 @@ function normaliseColour(colour) {
   return COLOUR_NORM_MAP[colour] || colour;
 }
 
+// ── Mixed-size sale ↔ broken stock matching ─────────────────────
+// A "mixed sale" is a Set line with topSize !== shortsSize. It can be
+// fulfilled from broken stock in one of two ways:
+//   (a) a single "combo" broken item with matching topSize+shortsSize, OR
+//   (b) a loose broken "top" of topSize AND a loose broken "shorts" of shortsSize.
+// Only UNMATCHED broken items (no matchedSaleId) at the sale's location count.
+// Returns {type:"combo",items:[comboItem]} or {type:"pair",items:[top,shorts]} or null.
+function findBrokenMatchForSale(sale, driStock) {
+  if (!(sale && sale.itemName === "Nike Park Senior Set" && sale.topSize && sale.shortsSize && sale.topSize !== sale.shortsSize)) return null;
+  const loc = sale.platform === "Birms" ? "birmingham" : "you";
+  const col = normaliseColour(sale.colour);
+  const broken = driStock.filter(s => s.status === "broken" && !s.problem && !s.matchedSaleId && s.location === loc && normaliseColour(s.colour) === col);
+  // (a) whole combo
+  const combo = broken.find(s => s.pieceType === "combo" && s.topSize === sale.topSize && s.shortsSize === sale.shortsSize);
+  if (combo) return {
+    type: "combo",
+    items: [combo]
+  };
+  // (b) loose pair
+  const top = broken.find(s => s.pieceType === "top" && s.size === sale.topSize);
+  const shorts = broken.find(s => s.pieceType === "shorts" && s.size === sale.shortsSize && s.id !== (top && top.id));
+  if (top && shorts) return {
+    type: "pair",
+    items: [top, shorts]
+  };
+  // Partial (only one half) → not fully matchable; caller flags for manual decision.
+  return null;
+}
+
+// Active (non-completed/shipped) mixed sales at a given location that still
+// need matching (no broken item already points at them).
+function unmatchedMixedSales(sales, driStock, location) {
+  const locPlat = location === "birmingham" ? "Birms" : null;
+  return (sales || []).filter(sale => {
+    if (!(sale.itemName === "Nike Park Senior Set" && sale.topSize && sale.shortsSize && sale.topSize !== sale.shortsSize)) return false;
+    if (["completed", "shipped"].includes(sale.status)) return false;
+    const saleLoc = sale.platform === "Birms" ? "birmingham" : "you";
+    if (location === "birmingham" && saleLoc !== "birmingham") return false;
+    if (location !== "birmingham" && saleLoc === "birmingham") return false;
+    // already matched?
+    const already = driStock.some(s => s.matchedSaleId === sale.id);
+    return !already;
+  });
+}
+
 // ── Run once to fix colour names in existing stock ──────────────
 function getItemNameFromStock(s) {
   const colour = s.colour || "";
@@ -4822,7 +4867,11 @@ function TabSales({
       // For mixed-size Set sales: create a broken piece (the leftover half)
       // topSize = size of the TOP sold → leftover piece is SHORTS of same size
       // shortsSize = size of the SHORTS sold → leftover piece is TOP of same size
-      if (isMixedSet) {
+      // BUT: if this sale was already matched to existing broken stock (combo or
+      // loose pair) via the Broken Sets "Match" button, do NOT break a fresh set —
+      // the demand is already fulfilled from broken inventory.
+      const alreadyMatched = prev.some(s => s.matchedSaleId === sale.id);
+      if (isMixedSet && !alreadyMatched) {
         // sale.size is the TOP size for this line (topSize stored on sale)
         // The piece left over from THIS set is the shorts of sale.size
         // The OTHER line will create the top leftover of shortsSize
@@ -8611,20 +8660,35 @@ Return ONLY valid JSON in this exact format, no other text:
               const iName = item.itemName || "Nike Park Senior Set";
               const cost = getItemFromColour(col, iName).cost || SET_COST;
               const sType = iName === "Park VII Jersey" ? "top" : iName === "Park III Shorts" ? "shorts" : iName === "Miler Top" ? "top" : iName === "Challenger Shorts" ? "shorts" : "set";
+              const hasDiff = iName === "Nike Park Senior Set" && item.topSize && item.shortsSize && item.topSize !== item.shortsSize;
+              // Preserve match links: existing broken combos for this purchase+colour+sizes
+              // that were already matched to a sale keep their matchedSaleId across rebuild.
+              const priorMatched = hasDiff ? prev.filter(s => s.purchaseId === p.id && s.pieceType === "combo" && normaliseColour(s.colour) === col && s.topSize === item.topSize && s.shortsSize === item.shortsSize && s.matchedSaleId).map(s => s.matchedSaleId) : [];
               for (let i = 0; i < qty; i++) {
+                const carriedMatch = hasDiff && priorMatched[i] ? priorMatched[i] : undefined;
                 newStock.push({
                   id: Date.now() + Math.random(),
                   colour: col,
                   size: item.size,
                   itemName: iName,
                   stockType: sType,
-                  status: nowDelivered ? "in_stock" : "preorder",
+                  status: hasDiff ? "broken" : nowDelivered ? "in_stock" : "preorder",
                   location: loc,
                   costGBP: cost,
                   supplier: "Newitts",
                   orderedDate: p.date || now,
                   problem: false,
-                  purchaseId: p.id
+                  purchaseId: p.id,
+                  ...(hasDiff ? {
+                    pieceType: "combo",
+                    topSize: item.topSize,
+                    shortsSize: item.shortsSize,
+                    note: item.note || `Top ${item.topSize} / Shorts ${item.shortsSize}`,
+                    brokenDate: p.date || now,
+                    ...(carriedMatch ? {
+                      matchedSaleId: carriedMatch
+                    } : {})
+                  } : {})
                 });
               }
             });
@@ -9008,7 +9072,9 @@ Return ONLY valid JSON in this exact format, no other text:
             size: l.size,
             itemName: l.itemName,
             stockType: l.itemName === "Park VII Jersey" ? "top" : l.itemName === "Park III Shorts" ? "shorts" : l.itemName === "Miler Top" ? "top" : l.itemName === "Challenger Shorts" ? "shorts" : "set",
-            status: orderDeliveryStatus === "delivered" ? "in_stock" : "preorder",
+            // Mixed-size Set ordered = a "combo" broken item (one sellable set, wrong-matched sizes).
+            // Lives in Broken Sets, matchable to a mixed sale. Otherwise a normal set/piece.
+            status: hasDiff ? "broken" : orderDeliveryStatus === "delivered" ? "in_stock" : "preorder",
             location: loc,
             costGBP: getItemFromColour(l.colour).cost || 22.95,
             supplier: "Newitts",
@@ -9016,9 +9082,11 @@ Return ONLY valid JSON in this exact format, no other text:
             problem: false,
             purchaseId: purchaseId,
             ...(hasDiff ? {
+              pieceType: "combo",
               topSize: l.size,
               shortsSize: l.shortsSize,
-              note: `Top ${l.size} / Shorts ${l.shortsSize}`
+              note: `Top ${l.size} / Shorts ${l.shortsSize}`,
+              brokenDate: orderDate
             } : {})
           });
         }
@@ -10320,20 +10388,34 @@ Return ONLY valid JSON in this exact format, no other text:
           const newStock = [];
           newItems.forEach(item => {
             const qty = item.qty || 1;
+            const hasDiff = item.itemName === "Nike Park Senior Set" && item.topSize && item.shortsSize && item.topSize !== item.shortsSize;
+            // Preserve match links for combos already matched to a sale.
+            const priorMatched = hasDiff ? prev.filter(s => s.purchaseId === purchaseId && s.pieceType === "combo" && s.colour.trim() === item.colour.trim() && s.topSize === item.topSize && s.shortsSize === item.shortsSize && s.matchedSaleId).map(s => s.matchedSaleId) : [];
             for (let i = 0; i < qty; i++) {
+              const carriedMatch = hasDiff && priorMatched[i] ? priorMatched[i] : undefined;
               newStock.push({
                 id: Date.now() + Math.random(),
                 colour: item.colour.trim(),
                 size: item.size,
                 itemName: item.itemName,
                 stockType: item.type,
-                status: nowDelivered ? "in_stock" : "preorder",
+                status: hasDiff ? "broken" : nowDelivered ? "in_stock" : "preorder",
                 location: loc === "Birmingham" ? "birmingham" : "you",
                 costGBP: item.cost,
                 supplier: "Newitts",
                 orderedDate: updated.date || now,
                 problem: false,
-                purchaseId
+                purchaseId,
+                ...(hasDiff ? {
+                  pieceType: "combo",
+                  topSize: item.topSize,
+                  shortsSize: item.shortsSize,
+                  note: item.note || `Top ${item.topSize} / Shorts ${item.shortsSize}`,
+                  brokenDate: updated.date || now,
+                  ...(carriedMatch ? {
+                    matchedSaleId: carriedMatch
+                  } : {})
+                } : {})
               });
             }
           });
@@ -12053,7 +12135,27 @@ function TabBirmingham({
     stockStatus: "in_stock"
   })), subTab === "overview" && (() => {
     const brokenBham = driStock.filter(s => s.status === "broken" && s.location === "birmingham" && !s.problem);
-    if (brokenBham.length === 0) return null;
+    const pendingMixed = unmatchedMixedSales(sales, driStock, "birmingham");
+    const matchTargets = {};
+    pendingMixed.forEach(sale => {
+      const m = findBrokenMatchForSale(sale, driStock);
+      if (m) m.items.forEach(it => {
+        if (!matchTargets[it.id]) matchTargets[it.id] = {
+          sale,
+          match: m
+        };
+      });
+    });
+    const unmatchable = pendingMixed.filter(sale => !findBrokenMatchForSale(sale, driStock));
+    if (brokenBham.length === 0 && unmatchable.length === 0) return null;
+    function doMatch(sale, match) {
+      const ids = match.items.map(i => i.id);
+      setDriStock(p => p.map(x => ids.includes(x.id) ? {
+        ...x,
+        matchedSaleId: sale.id,
+        note: `Matched to sale — ${sale.username || sale.platform || "Vinted"} (${sale.topSize}/${sale.shortsSize})`
+      } : x));
+    }
     return /*#__PURE__*/React.createElement("div", {
       style: {
         background: C.grey1,
@@ -12076,48 +12178,128 @@ function TabBirmingham({
         fontSize: 11,
         marginBottom: 10
       }
-    }, "Half-sets waiting for matching reorder."), brokenBham.map((s, idx) => /*#__PURE__*/React.createElement("div", {
-      key: s.id || idx,
+    }, "Half-sets and mixed-size combos. Complete via reorder, or match to a mixed-size sale."), unmatchable.length > 0 && unmatchable.map((sale, i) => /*#__PURE__*/React.createElement("div", {
+      key: "flagb" + (sale.id || i),
       style: {
-        background: C.grey2,
+        background: "rgba(232,38,10,0.08)",
+        border: `1px solid rgba(232,38,10,0.3)`,
         borderRadius: 3,
-        padding: "8px 10px",
+        padding: "7px 10px",
         marginBottom: 6,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 10
-      }
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontWeight: 700,
-        fontSize: 12
-      }
-    }, s.colour, " ", s.size, " "), /*#__PURE__*/React.createElement("span", {
-      style: {
-        background: s.pieceType === "shorts" ? "rgba(59,130,246,0.15)" : "rgba(168,85,247,0.15)",
-        color: s.pieceType === "shorts" ? C.blue : C.purple,
-        borderRadius: 2,
-        padding: "1px 6px",
-        fontSize: 10,
-        fontWeight: 700,
-        textTransform: "uppercase",
-        marginLeft: 4
-      }
-    }, s.pieceType === "shorts" ? "Shorts" : "Top"), /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.grey5,
         fontSize: 11,
-        marginLeft: 8
+        color: C.red
       }
-    }, "— needs ", s.pieceType === "shorts" ? "top" : "shorts", " ", s.size)), /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.amber,
-        fontSize: 10,
-        fontWeight: 700,
-        textTransform: "uppercase"
-      }
-    }, "Awaiting Reorder"))));
+    }, "⚠ Mixed sale ", /*#__PURE__*/React.createElement("b", null, sale.colour, " Top ", sale.topSize, " / Shorts ", sale.shortsSize), " (", sale.username || sale.platform, ") can't be fully matched — manual decision needed.")), brokenBham.map((s, idx) => {
+      const isCombo = s.pieceType === "combo";
+      const target = matchTargets[s.id];
+      return /*#__PURE__*/React.createElement("div", {
+        key: s.id || idx,
+        style: {
+          background: C.grey2,
+          borderRadius: 3,
+          padding: "8px 10px",
+          marginBottom: 6,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10
+        }
+      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontWeight: 700,
+          fontSize: 12
+        }
+      }, s.colour, " "), isCombo ? /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 11
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.grey5
+        }
+      }, "Top"), " ", s.topSize, " / ", /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.grey5
+        }
+      }, "Shorts"), " ", s.shortsSize, " ", /*#__PURE__*/React.createElement("span", {
+        style: {
+          background: "rgba(245,158,11,0.15)",
+          color: C.amber,
+          borderRadius: 2,
+          padding: "1px 6px",
+          fontSize: 9,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          marginLeft: 4
+        }
+      }, "Combo")) : /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 12
+        }
+      }, s.size, " "), /*#__PURE__*/React.createElement("span", {
+        style: {
+          background: s.pieceType === "shorts" ? "rgba(59,130,246,0.15)" : "rgba(168,85,247,0.15)",
+          color: s.pieceType === "shorts" ? C.blue : C.purple,
+          borderRadius: 2,
+          padding: "1px 6px",
+          fontSize: 10,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          marginLeft: 4
+        }
+      }, s.pieceType === "shorts" ? "Shorts" : "Top")), s.matchedSaleId ? /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.green,
+          fontSize: 11,
+          marginLeft: 8
+        }
+      }, "— matched to sale #", s.matchedSaleId) : isCombo ? /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.grey5,
+          fontSize: 11,
+          marginLeft: 8
+        }
+      }, "— sellable set, mismatched sizes") : /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.grey5,
+          fontSize: 11,
+          marginLeft: 8
+        }
+      }, "— needs ", s.pieceType === "shorts" ? "top" : "shorts", " ", s.size)), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          gap: 6,
+          alignItems: "center"
+        }
+      }, s.matchedSaleId ? /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.green,
+          fontSize: 10,
+          fontWeight: 700,
+          textTransform: "uppercase"
+        }
+      }, "Matched ✓") : target ? /*#__PURE__*/React.createElement("button", {
+        onClick: () => doMatch(target.sale, target.match),
+        style: {
+          background: "rgba(34,197,94,0.15)",
+          border: `1px solid ${C.green}`,
+          color: C.green,
+          borderRadius: 2,
+          padding: "2px 8px",
+          fontSize: 9,
+          fontWeight: 700,
+          cursor: "pointer",
+          textTransform: "uppercase"
+        }
+      }, "⇄ Match to sale (", target.sale.topSize, "/", target.sale.shortsSize, ")") : /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.amber,
+          fontSize: 10,
+          fontWeight: 700,
+          textTransform: "uppercase"
+        }
+      }, "Awaiting Reorder")));
+    }));
   })(), subTab === "history" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SHdr, null, "Birmingham Purchase History"), bhamPurchases.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
       color: C.grey5,
@@ -13516,7 +13698,31 @@ function TabStock({
     }, "→ Bham")))));
   })(), (() => {
     const brokenPieces = driStock.filter(s => s.status === "broken" && s.location !== "birmingham" && !s.problem);
-    if (brokenPieces.length === 0) return null;
+    // Active mixed sales (London) still needing a match
+    const pendingMixed = unmatchedMixedSales(sales, driStock, "you");
+    // Build a set of broken-item ids that a pending mixed sale could consume,
+    // mapped to the sale it would fulfil.
+    const matchTargets = {};
+    pendingMixed.forEach(sale => {
+      const m = findBrokenMatchForSale(sale, driStock);
+      if (m) m.items.forEach(it => {
+        if (!matchTargets[it.id]) matchTargets[it.id] = {
+          sale,
+          match: m
+        };
+      });
+    });
+    // Mixed sales that have NO full match available → flag for manual decision
+    const unmatchable = pendingMixed.filter(sale => !findBrokenMatchForSale(sale, driStock));
+    if (brokenPieces.length === 0 && unmatchable.length === 0) return null;
+    function doMatch(sale, match) {
+      const ids = match.items.map(i => i.id);
+      setDriStock(p => p.map(x => ids.includes(x.id) ? {
+        ...x,
+        matchedSaleId: sale.id,
+        note: `Matched to sale — ${sale.username || sale.platform || "Vinted"} (${sale.topSize}/${sale.shortsSize})`
+      } : x));
+    }
     return /*#__PURE__*/React.createElement("div", {
       style: {
         background: C.grey1,
@@ -13539,74 +13745,148 @@ function TabStock({
         fontSize: 11,
         marginBottom: 10
       }
-    }, "Half-sets waiting for matching reorder. Do not sell — pair with incoming stock."), brokenPieces.map((s, idx) => /*#__PURE__*/React.createElement("div", {
-      key: s.id || idx,
+    }, "Half-sets and mixed-size combos. Default: complete into full sets via reorder. Or match to a mixed-size sale."), unmatchable.length > 0 && unmatchable.map((sale, i) => /*#__PURE__*/React.createElement("div", {
+      key: "flag" + (sale.id || i),
       style: {
-        background: C.grey2,
+        background: "rgba(232,38,10,0.08)",
+        border: `1px solid rgba(232,38,10,0.3)`,
         borderRadius: 3,
-        padding: "8px 10px",
+        padding: "7px 10px",
         marginBottom: 6,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 10
-      }
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontWeight: 700,
-        fontSize: 12
-      }
-    }, s.colour, " ", s.size, " "), /*#__PURE__*/React.createElement("span", {
-      style: {
-        background: s.pieceType === "shorts" ? "rgba(59,130,246,0.15)" : "rgba(168,85,247,0.15)",
-        color: s.pieceType === "shorts" ? C.blue : C.purple,
-        borderRadius: 2,
-        padding: "1px 6px",
-        fontSize: 10,
-        fontWeight: 700,
-        textTransform: "uppercase",
-        marginLeft: 4
-      }
-    }, s.pieceType === "shorts" ? "Shorts" : "Top"), /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.grey5,
         fontSize: 11,
-        marginLeft: 8
+        color: C.red
       }
-    }, "— needs matching ", s.pieceType === "shorts" ? "top" : "shorts", " ", s.size, " to complete")), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 6,
-        alignItems: "center"
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.amber,
-        fontSize: 10,
-        fontWeight: 700,
-        textTransform: "uppercase"
-      }
-    }, "Awaiting Reorder"), /*#__PURE__*/React.createElement("button", {
-      onClick: () => {
-        setDriStock(p => p.map(x => x.id === s.id ? {
-          ...x,
-          status: "in_stock",
-          pieceType: undefined,
-          note: ""
-        } : x));
-      },
-      style: {
-        background: "rgba(34,197,94,0.1)",
-        border: `1px solid ${C.green}`,
-        color: C.green,
-        borderRadius: 2,
-        padding: "2px 6px",
-        fontSize: 9,
-        fontWeight: 700,
-        cursor: "pointer",
-        textTransform: "uppercase"
-      }
-    }, "↩ Restore")))));
+    }, "⚠ Mixed sale ", /*#__PURE__*/React.createElement("b", null, sale.colour, " Top ", sale.topSize, " / Shorts ", sale.shortsSize), " (", sale.username || sale.platform, ") can't be fully matched from broken stock — needs a manual decision (break a set or reorder).")), brokenPieces.map((s, idx) => {
+      const isCombo = s.pieceType === "combo";
+      const target = matchTargets[s.id];
+      return /*#__PURE__*/React.createElement("div", {
+        key: s.id || idx,
+        style: {
+          background: C.grey2,
+          borderRadius: 3,
+          padding: "8px 10px",
+          marginBottom: 6,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10
+        }
+      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontWeight: 700,
+          fontSize: 12
+        }
+      }, s.colour, " "), isCombo ? /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 11
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.grey5
+        }
+      }, "Top"), " ", s.topSize, " / ", /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.grey5
+        }
+      }, "Shorts"), " ", s.shortsSize, " ", /*#__PURE__*/React.createElement("span", {
+        style: {
+          background: "rgba(245,158,11,0.15)",
+          color: C.amber,
+          borderRadius: 2,
+          padding: "1px 6px",
+          fontSize: 9,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          marginLeft: 4
+        }
+      }, "Combo")) : /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 12
+        }
+      }, s.size, " "), /*#__PURE__*/React.createElement("span", {
+        style: {
+          background: s.pieceType === "shorts" ? "rgba(59,130,246,0.15)" : "rgba(168,85,247,0.15)",
+          color: s.pieceType === "shorts" ? C.blue : C.purple,
+          borderRadius: 2,
+          padding: "1px 6px",
+          fontSize: 10,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          marginLeft: 4
+        }
+      }, s.pieceType === "shorts" ? "Shorts" : "Top")), s.matchedSaleId ? /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.green,
+          fontSize: 11,
+          marginLeft: 8
+        }
+      }, "— matched to sale #", s.matchedSaleId) : isCombo ? /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.grey5,
+          fontSize: 11,
+          marginLeft: 8
+        }
+      }, "— sellable set, mismatched sizes") : /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.grey5,
+          fontSize: 11,
+          marginLeft: 8
+        }
+      }, "— needs matching ", s.pieceType === "shorts" ? "top" : "shorts", " ", s.size, " to complete")), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          gap: 6,
+          alignItems: "center"
+        }
+      }, s.matchedSaleId ? /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.green,
+          fontSize: 10,
+          fontWeight: 700,
+          textTransform: "uppercase"
+        }
+      }, "Matched ✓") : target ? /*#__PURE__*/React.createElement("button", {
+        onClick: () => doMatch(target.sale, target.match),
+        style: {
+          background: "rgba(34,197,94,0.15)",
+          border: `1px solid ${C.green}`,
+          color: C.green,
+          borderRadius: 2,
+          padding: "2px 8px",
+          fontSize: 9,
+          fontWeight: 700,
+          cursor: "pointer",
+          textTransform: "uppercase"
+        }
+      }, "⇄ Match to sale (", target.sale.topSize, "/", target.sale.shortsSize, ")") : /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.amber,
+          fontSize: 10,
+          fontWeight: 700,
+          textTransform: "uppercase"
+        }
+      }, "Awaiting Reorder"), !s.matchedSaleId && !isCombo && /*#__PURE__*/React.createElement("button", {
+        onClick: () => {
+          setDriStock(p => p.map(x => x.id === s.id ? {
+            ...x,
+            status: "in_stock",
+            pieceType: undefined,
+            note: ""
+          } : x));
+        },
+        style: {
+          background: "rgba(34,197,94,0.1)",
+          border: `1px solid ${C.green}`,
+          color: C.green,
+          borderRadius: 2,
+          padding: "2px 6px",
+          fontSize: 9,
+          fontWeight: 700,
+          cursor: "pointer",
+          textTransform: "uppercase"
+        }
+      }, "↩ Restore")));
+    }));
   })(), problems.length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SHdr, null, "Problem Items"), problems.map((s, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
     style: {
