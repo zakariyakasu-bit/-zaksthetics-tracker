@@ -2301,10 +2301,27 @@ function locLbl(l) {
   return l === "you" ? "With You" : l === "birmingham" ? "Birmingham" : l === "sold" ? "Sold" : l;
 }
 function statusCol(s) {
-  return s === "completed" ? C.green : s === "pending_delivery" ? C.amber : s === "awaiting_stock" ? C.blue : s === "shipped" ? C.purple : C.grey5;
+  return s === "completed" ? C.green : s === "pending_delivery" ? C.amber : s === "awaiting_stock" ? C.blue : s === "shipped" ? C.purple : RETURN_STATUSES.includes(s) ? C.red : C.grey5;
 }
 function statusLbl(s) {
-  return s === "completed" ? "Completed" : s === "pending_delivery" ? "Pending Delivery" : s === "awaiting_stock" ? "Awaiting Stock" : s === "shipped" ? "Shipped" : s || "Unknown";
+  return s === "completed" ? "Completed" : s === "pending_delivery" ? "Pending Delivery" : s === "awaiting_stock" ? "Awaiting Stock" : s === "shipped" ? "Shipped" : s === "refund_started" ? "Refund Started" : s === "return_sent" ? "Buyer Sent Back" : s === "returned" ? "Stock Back In Hand" : s || "Unknown";
+}
+
+// ── Returns pipeline ────────────────────────────────────────────
+// Mirrors the outgoing flow. A sale in ANY of these states has had its
+// revenue reversed (excluded from P&L) and must NOT count as committed
+// stock — otherwise the Available column silently drops by one per return.
+// Only "returned" has physically restocked the unit.
+const RETURN_STATUSES = ["refund_started", "return_sent", "returned"];
+// In-flight = money reversed, item not yet back in hand.
+const RETURN_IN_FLIGHT = ["refund_started", "return_sent"];
+function nextReturnStatus(s) {
+  return s === "refund_started" ? "return_sent" : s === "return_sent" ? "returned" : null;
+}
+// A sale that still has a claim on stock (sold-but-not-gone). Returns are
+// explicitly excluded: the unit is coming back / is back, so it is NOT committed.
+function isCommittedSale(s) {
+  return isCommittedSale(s) && !RETURN_STATUSES.includes(s.status);
 }
 
 // ── TAB: Dashboard ─────────────────────────────────────────────
@@ -2342,9 +2359,16 @@ function TabListings({
   // Subtract active Vinted sales (any status except completed/shipped) from inHand
   // These items are already committed — don't suggest listing them
   const committedMap = {};
-  (sales || []).filter(s => !["completed", "shipped"].includes(s.status) && s.platform !== "Birms" && (s.itemType === "drifit" || !s.itemType)).forEach(s => {
+  (sales || []).filter(s => isCommittedSale(s) && s.platform !== "Birms" && (s.itemType === "drifit" || !s.itemType)).forEach(s => {
     const key = nc(s.colour) + "|" + s.size + "|" + (s.itemName || "Nike Park Senior Set");
     committedMap[key] = (committedMap[key] || 0) + 1;
+  });
+  // In-flight returns count as INCOMING stock: the unit is on its way back
+  // and will be relistable, same as a preorder. Not counted as available,
+  // and NOT as committed (isCommittedSale excludes return statuses).
+  (sales || []).filter(s => RETURN_IN_FLIGHT.includes(s.status) && s.platform !== "Birms" && (s.itemType === "drifit" || !s.itemType)).forEach(s => {
+    const key = nc(s.colour) + "|" + s.size + "|" + (s.itemName || "Nike Park Senior Set");
+    incomingMap[key] = (incomingMap[key] || 0) + 1;
   });
   // NOTE: inHandMap is left as the raw in_stock count here.
   // "available" (inHand - committed) is computed once, downstream,
@@ -4842,6 +4866,28 @@ function TabSales({
     };
   }
 
+  // ── Restock on return (buyer sent it back, item now in hand) ──
+  // Flips ONE matching sold unit back to in_stock. Prefers the unit linked to
+  // the same purchase so cost attribution stays correct; falls back to any
+  // matching sold unit at the same location.
+  function syncStockOnReturn(sale) {
+    if (sale.itemType === "external" || sale.source === "bham") return;
+    const loc = sale.platform === "Birms" ? "birmingham" : "you";
+    setDriStock(prev => {
+      const updated = [...prev];
+      const matches = s => !s.problem && s.status === "sold" && s.location === loc && normaliseColour(s.colour) === normaliseColour(sale.colour) && s.size === sale.size && (s.itemName === "Nike Park Senior Set" || s.stockType === "set" || !s.itemName);
+      let idx = updated.findIndex(s => matches(s) && s.purchaseId === sale.purchaseId);
+      if (idx === -1) idx = updated.findIndex(matches);
+      if (idx !== -1) updated[idx] = {
+        ...updated[idx],
+        status: "in_stock",
+        soldDate: undefined,
+        returnedDate: new Date().toISOString().slice(0, 10)
+      };
+      return updated;
+    });
+  }
+
   // ── Sync stock on completion ──────────────────────────────────
   function syncStockOnComplete(sale) {
     if (sale.itemType === "external" || sale.source === "bham") return;
@@ -5011,7 +5057,10 @@ function TabSales({
       pending_delivery: "datePending",
       shipped: "dateShipped",
       completed: "dateCompleted",
-      awaiting_stock: "dateAwaitingStock"
+      awaiting_stock: "dateAwaitingStock",
+      refund_started: "dateRefundStarted",
+      return_sent: "dateReturnSent",
+      returned: "dateReturned"
     }[status];
     setSales(p => p.map(s => {
       if (s.id === id) {
@@ -5023,7 +5072,13 @@ function TabSales({
             [dateKey]: now
           } : {})
         };
-        if (status === "completed") syncStockOnComplete(updated);
+        // Returns: only "returned" physically restocks the unit.
+        if (status === "returned") syncStockOnReturn(updated);
+        // Flipping back to completed (buyer kept it / Vinted paid out):
+        //  - from an IN-FLIGHT return the unit was never released, so do NOT
+        //    re-mark stock sold or it double-counts.
+        //  - from "returned" the unit IS back in stock, so re-mark it sold.
+        if (status === "completed" && !RETURN_IN_FLIGHT.includes(s.status)) syncStockOnComplete(updated);
         // Auto-uncheck draft1 when sale completes or ships — the draft became the active listing
         if ((status === "completed" || status === "shipped") && (s.status === "pending_delivery" || s.status === "awaiting_stock")) {
           const COLOUR_MAP = {
@@ -5165,7 +5220,9 @@ function TabSales({
   const allSizes = [...new Set(allSales.map(s => s.size).filter(Boolean))].sort();
   const allItems = [...new Set(allSales.map(s => s.itemName || "Dri-Fit Set").filter(Boolean))].sort();
   const filtered = allSales.filter(s => {
-    if (filter !== "all" && s.status !== filter) return false;
+    if (filter === "returns") {
+      if (!RETURN_STATUSES.includes(s.status)) return false;
+    } else if (filter !== "all" && s.status !== filter) return false;
     if (filterPlatform !== "all" && s.platform !== filterPlatform) return false;
     if (filterColour !== "all" && s.colour !== filterColour) return false;
     if (filterSize !== "all" && s.size !== filterSize) return false;
@@ -5179,7 +5236,8 @@ function TabSales({
     awaiting_stock: allSales.filter(r => r.status === "awaiting_stock").length,
     pending_delivery: allSales.filter(r => r.status === "pending_delivery").length,
     shipped: allSales.filter(r => r.status === "shipped").length,
-    completed: allSales.filter(r => r.status === "completed").length
+    completed: allSales.filter(r => r.status === "completed").length,
+    returns: allSales.filter(r => RETURN_STATUSES.includes(r.status)).length
   };
 
   // Available external stock for dropdown
@@ -5215,7 +5273,7 @@ function TabSales({
       flexWrap: "wrap",
       marginBottom: 10
     }
-  }, [["all", "All", C.offwhite], ["awaiting_stock", "Awaiting Stock", C.blue], ["pending_delivery", "Pending", C.amber], ["shipped", "Shipped", C.purple], ["completed", "Completed", C.green]].map(([k, lbl, col]) => /*#__PURE__*/React.createElement("button", {
+  }, [["all", "All", C.offwhite], ["awaiting_stock", "Awaiting Stock", C.blue], ["pending_delivery", "Pending", C.amber], ["shipped", "Shipped", C.purple], ["completed", "Completed", C.green], ["returns", "Returns", C.red]].map(([k, lbl, col]) => /*#__PURE__*/React.createElement("button", {
     key: k,
     onClick: () => setFilter(k),
     style: {
@@ -6808,7 +6866,50 @@ function TabSales({
     }, "→ Mark Shipped"), sale.status === "shipped" && /*#__PURE__*/React.createElement("button", {
       style: BG,
       onClick: () => updateStatus(sale.id, "completed")
-    }, "→ Mark Completed"), sale.status !== "completed" && sale.status !== "awaiting_stock" && /*#__PURE__*/React.createElement("button", {
+    }, "→ Mark Completed"), ["completed", "shipped"].includes(sale.status) && /*#__PURE__*/React.createElement("button", {
+      style: {
+        background: "rgba(232,38,10,0.1)",
+        border: `1px solid rgba(232,38,10,0.4)`,
+        color: C.red,
+        borderRadius: 2,
+        padding: "4px 10px",
+        fontSize: 10,
+        fontWeight: 700,
+        cursor: "pointer",
+        textTransform: "uppercase"
+      },
+      onClick: () => updateStatus(sale.id, "refund_started")
+    }, "↩ Start Return"), sale.status === "refund_started" && /*#__PURE__*/React.createElement("button", {
+      style: {
+        background: "rgba(232,38,10,0.1)",
+        border: `1px solid rgba(232,38,10,0.4)`,
+        color: C.red,
+        borderRadius: 2,
+        padding: "4px 10px",
+        fontSize: 10,
+        fontWeight: 700,
+        cursor: "pointer",
+        textTransform: "uppercase"
+      },
+      onClick: () => updateStatus(sale.id, "return_sent")
+    }, "→ Buyer Sent Back"), sale.status === "return_sent" && /*#__PURE__*/React.createElement("button", {
+      style: BG,
+      onClick: () => updateStatus(sale.id, "returned")
+    }, "→ Stock Back In Hand"), RETURN_STATUSES.includes(sale.status) && /*#__PURE__*/React.createElement("button", {
+      style: {
+        background: "rgba(34,197,94,0.1)",
+        border: `1px solid ${C.green}`,
+        color: C.green,
+        borderRadius: 2,
+        padding: "4px 10px",
+        fontSize: 10,
+        fontWeight: 700,
+        cursor: "pointer",
+        textTransform: "uppercase"
+      },
+      onClick: () => updateStatus(sale.id, "completed"),
+      title: sale.status === "returned" ? "Buyer kept it / paid out — re-marks the unit as sold" : "Buyer kept it / paid out — restores the sale"
+    }, "↺ Back to Completed"), sale.status !== "completed" && sale.status !== "awaiting_stock" && /*#__PURE__*/React.createElement("button", {
       style: BG,
       onClick: () => updateStatus(sale.id, "completed")
     }, "✓ Complete"), sale.previousStatus && /*#__PURE__*/React.createElement("button", {
@@ -9872,7 +9973,9 @@ Return ONLY valid JSON in this exact format, no other text:
         });
         setEditPurchaseItems((p.items || []).map((item, idx) => ({
           ...item,
-          _idx: idx
+          _idx: idx,
+          // hydrate the diff-sizes toggle from stored topSize/shortsSize
+          diffSizes: !!(item.topSize && item.shortsSize && item.topSize !== item.shortsSize)
         })));
       },
       style: {
@@ -10238,6 +10341,7 @@ Return ONLY valid JSON in this exact format, no other text:
       const isShorts = item.itemName === "Park III Shorts";
       const isChal = item.itemName === "Challenger Shorts";
       const isMiler = item.itemName === "Miler Top";
+      const isEditSet = (item.itemName || "Nike Park Senior Set") === "Nike Park Senior Set";
       return /*#__PURE__*/React.createElement("div", {
         key: idx,
         style: {
@@ -10288,7 +10392,19 @@ Return ONLY valid JSON in this exact format, no other text:
       }, getColoursForItem(item.itemName || "Nike Park Senior Set").map(c => /*#__PURE__*/React.createElement("option", {
         key: c,
         value: c
-      }, c))), /*#__PURE__*/React.createElement("select", {
+      }, c))), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          flexDirection: "column",
+          gap: 2
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          gap: 3,
+          alignItems: "center"
+        }
+      }, /*#__PURE__*/React.createElement("select", {
         style: {
           background: C.grey2,
           border: `1px solid ${C.grey3}`,
@@ -10305,7 +10421,51 @@ Return ONLY valid JSON in this exact format, no other text:
         } : l))
       }, SIZES.map(s => /*#__PURE__*/React.createElement("option", {
         key: s
-      }, s))), /*#__PURE__*/React.createElement("input", {
+      }, s))), isEditSet && item.diffSizes && /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.grey5,
+          fontSize: 10
+        }
+      }, "/"), isEditSet && item.diffSizes && /*#__PURE__*/React.createElement("select", {
+        style: {
+          background: C.grey2,
+          border: `1px solid ${C.amber}`,
+          color: C.offwhite,
+          borderRadius: 2,
+          padding: "4px 6px",
+          fontSize: 11,
+          outline: "none"
+        },
+        value: item.shortsSize || item.size,
+        onChange: e => setEditPurchaseItems(p => p.map((l, i) => i === idx ? {
+          ...l,
+          shortsSize: e.target.value
+        } : l))
+      }, SIZES.map(s => /*#__PURE__*/React.createElement("option", {
+        key: s
+      }, s)))), isEditSet && /*#__PURE__*/React.createElement("label", {
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 3,
+          color: C.grey5,
+          fontSize: 9,
+          cursor: "pointer",
+          whiteSpace: "nowrap"
+        }
+      }, /*#__PURE__*/React.createElement("input", {
+        type: "checkbox",
+        checked: !!item.diffSizes,
+        onChange: e => {
+          const ck = e.target.checked;
+          setEditPurchaseItems(p => p.map((l, i) => i === idx ? {
+            ...l,
+            diffSizes: ck,
+            shortsSize: ck ? l.shortsSize || l.size : undefined,
+            topSize: ck ? l.size : undefined
+          } : l));
+        }
+      }), "Top / Shorts")), /*#__PURE__*/React.createElement("input", {
         type: "number",
         min: "1",
         style: {
@@ -10375,12 +10535,29 @@ Return ONLY valid JSON in this exact format, no other text:
         const purchaseId = p.id;
         const now = new Date().toISOString().slice(0, 10);
         // Rebuild items with correct cost/type
-        const newItems = editPurchaseItems.map(item => ({
-          ...item,
-          colour: item.colour.trim(),
-          cost: getItemFromColour(item.colour.trim(), item.itemName).cost || SET_COST,
-          type: item.itemName === "Park VII Jersey" ? "top" : item.itemName === "Park III Shorts" ? "shorts" : item.itemName === "Miler Top" ? "top" : item.itemName === "Challenger Shorts" ? "shorts" : "set"
-        }));
+        const newItems = editPurchaseItems.map(item => {
+          const isSet = (item.itemName || "Nike Park Senior Set") === "Nike Park Senior Set";
+          const wantsDiff = isSet && item.diffSizes && item.shortsSize && item.shortsSize !== item.size;
+          const base = {
+            ...item,
+            colour: item.colour.trim(),
+            cost: getItemFromColour(item.colour.trim(), item.itemName).cost || SET_COST,
+            type: item.itemName === "Park VII Jersey" ? "top" : item.itemName === "Park III Shorts" ? "shorts" : item.itemName === "Miler Top" ? "top" : item.itemName === "Challenger Shorts" ? "shorts" : "set"
+          };
+          delete base.diffSizes;
+          delete base._idx;
+          if (wantsDiff) {
+            base.topSize = item.size;
+            base.shortsSize = item.shortsSize;
+            base.note = `Top ${item.size} / Shorts ${item.shortsSize}`;
+          } else {
+            // toggled off (or sizes equal) → strip diff fields so it rebuilds as a normal set
+            delete base.topSize;
+            delete base.shortsSize;
+            if (base.note && /^Top .* \/ Shorts /.test(base.note)) delete base.note;
+          }
+          return base;
+        });
         // Delete all existing stock linked to this purchase
         setDriStock(prev => {
           const remaining = prev.filter(s => s.purchaseId !== purchaseId);
@@ -10515,7 +10692,14 @@ Return ONLY valid JSON in this exact format, no other text:
         fontWeight: 800,
         marginRight: 4
       }
-    }, item.qty, "×") : null, getItemLabel(item)), /*#__PURE__*/React.createElement("span", {
+    }, item.qty, "×") : null, getItemLabel(item)), item.topSize && item.shortsSize && item.topSize !== item.shortsSize ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.amber,
+        fontSize: 10,
+        fontWeight: 700,
+        whiteSpace: "nowrap"
+      }
+    }, "T", item.topSize, " / S", item.shortsSize) : /*#__PURE__*/React.createElement("span", {
       style: {
         color: C.grey5,
         fontSize: 10
@@ -10960,7 +11144,7 @@ function TabBirmingham({
   function syncBhamStock() {
     setBhamSyncing(true);
     // Count completed+pending+shipped Birmingham drifit sales
-    const bhamSalesGone = (sales || []).filter(s => s.platform === "Birms" && ["completed", "shipped"].includes(s.status) && (s.itemType === "drifit" || !s.itemType));
+    const bhamSalesGone = (sales || []).filter(s => s.platform === "Birms" && ["completed", "shipped", ...RETURN_IN_FLIGHT].includes(s.status) && (s.itemType === "drifit" || !s.itemType));
     setDriStock(prev => {
       let updated = [...prev];
       // Count already sold per colour+size in Birmingham
@@ -12436,7 +12620,9 @@ function TabStock({
     setSyncing(true);
     // Only completed + shipped mark stock as sold
     // pending_delivery/awaiting_stock = matched but still in hand
-    const goneSales = (sales || []).filter(s => ["completed", "shipped"].includes(s.status) && (s.itemType === "drifit" || !s.itemType) && s.platform !== "Birms");
+    // In-flight returns (refund_started / return_sent) still count as GONE:
+    // the unit is physically with the buyer. Only "returned" releases it back.
+    const goneSales = (sales || []).filter(s => ["completed", "shipped", ...RETURN_IN_FLIGHT].includes(s.status) && (s.itemType === "drifit" || !s.itemType) && s.platform !== "Birms");
     setDriStock(prev => {
       let updated = [...prev];
       const now = new Date().toISOString().slice(0, 10);
@@ -12536,9 +12722,9 @@ function TabStock({
   // Sales demand: all active London drifit sales (not completed/shipped)
   // New model: demand = active sales count; coverage = in_stock + incoming
   // Gap = max(0, active - in_stock - incoming) → needs ordering
-  const allActiveSales = [...(sales || []).filter(s => !["completed", "shipped"].includes(s.status) && s.platform !== "Birms" && (s.itemType === "drifit" || !s.itemType)), ...(bhamSales || []).filter(s => !s.status || s.status === "pending")];
+  const allActiveSales = [...(sales || []).filter(s => isCommittedSale(s) && s.platform !== "Birms" && (s.itemType === "drifit" || !s.itemType)), ...(bhamSales || []).filter(s => !s.status || s.status === "pending")];
   const salesDemand = {};
-  (sales || []).filter(s => !["completed", "shipped"].includes(s.status) && (s.itemType === "drifit" || !s.itemType) && s.platform !== "Birms").forEach(s => {
+  (sales || []).filter(s => isCommittedSale(s) && (s.itemType === "drifit" || !s.itemType) && s.platform !== "Birms").forEach(s => {
     const k = normaliseColour(s.colour) + "-" + s.size;
     salesDemand[k] = (salesDemand[k] || 0) + 1;
   });
@@ -12987,7 +13173,7 @@ function TabStock({
     const sz = k.slice(lastDash + 1);
     const have = availableMap[k] || 0;
     // Find buyers for this colour+size
-    const buyers = (sales || []).filter(s => normaliseColour(s.colour) === col && s.size === sz && !["completed", "shipped"].includes(s.status) && s.platform !== "Birms" && (s.itemType === "drifit" || !s.itemType));
+    const buyers = (sales || []).filter(s => normaliseColour(s.colour) === col && s.size === sz && isCommittedSale(s) && s.platform !== "Birms" && (s.itemType === "drifit" || !s.itemType));
     const incoming = incomingMap[k] || 0;
     const short = Math.max(0, n - have - incoming);
     const isCovered = short === 0;
