@@ -2321,7 +2321,7 @@ function nextReturnStatus(s) {
 // A sale that still has a claim on stock (sold-but-not-gone). Returns are
 // explicitly excluded: the unit is coming back / is back, so it is NOT committed.
 function isCommittedSale(s) {
-  return isCommittedSale(s) && !RETURN_STATUSES.includes(s.status);
+  return !["completed", "shipped"].includes(s.status) && !RETURN_STATUSES.includes(s.status);
 }
 
 // ── TAB: Dashboard ─────────────────────────────────────────────
