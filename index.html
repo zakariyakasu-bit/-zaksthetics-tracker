@@ -1004,6 +1004,10 @@ const COLOUR_NORM_MAP = {
   "Pine Green/Black": "Green/Black",
   "Pine Green Black": "Green/Black",
   "Bright Crimson": "Crimson",
+  "University Blue": "Blue",
+  "Uni Red": "Red",
+  "Midnight Navy/White": "Navy",
+  "Midnight Navy-White": "Navy",
   "Turq White": "Turq/White",
   "Black-Silver": "Black Silver",
   "White-Silver": "White Silver",
@@ -4899,15 +4903,48 @@ function TabSales({
       const updated = [...prev];
       // Mark one matching set as sold
       const priorities = ["in_stock", "preorder"];
+      const isPlainSet = !isMixedSet && (sale.itemName === "Nike Park Senior Set" || !sale.itemName) && (sale.itemType === "drifit" || !sale.itemType);
+      let consumed = false;
       for (const pref of priorities) {
-        const idx = updated.findIndex(s => !s.problem && s.status === pref && s.location === loc && normaliseColour(s.colour) === normaliseColour(sale.colour) && s.size === sale.size && (s.itemName === "Nike Park Senior Set" || s.stockType === "set" || !s.itemName));
+        // Must be an actual SET row (stockType "set"), not a loose top/shorts that
+        // happens to carry itemName "Nike Park Senior Set". Matching a loose piece
+        // here would wrongly consume a single piece for a whole-set sale.
+        const idx = updated.findIndex(s => !s.problem && s.status === pref && s.location === loc && normaliseColour(s.colour) === normaliseColour(sale.colour) && s.size === sale.size && s.pieceType !== "combo" && (s.stockType === "set" || !s.stockType && !s.pieceType));
         if (idx !== -1) {
           updated[idx] = {
             ...updated[idx],
             status: "sold",
             soldDate: now
           };
+          consumed = true;
           break;
+        }
+      }
+      // ── DEFICIT RECONCILIATION (exact-match auto only) ──
+      // If no whole SET was available but a matching loose top+shorts pair exists
+      // (same colour, SAME size), consume the two loose pieces as the fulfilled set.
+      // This clears the "sold-as-set but stock was loose pieces" deficit. Mismatched
+      // sizes are NEVER auto-guessed — those require a manual diff-size (combo) entry,
+      // which acts as the override (handled by the isMixedSet branch below).
+      if (isPlainSet && !consumed) {
+        const col = normaliseColour(sale.colour);
+        const topIdx = updated.findIndex(s => !s.problem && s.status === "in_stock" && s.location === loc && normaliseColour(s.colour) === col && s.size === sale.size && s.stockType === "top");
+        // find a shorts that is NOT the same physical row as the top
+        const shortIdx = updated.findIndex((s, i) => i !== topIdx && !s.problem && s.status === "in_stock" && s.location === loc && normaliseColour(s.colour) === col && s.size === sale.size && s.stockType === "shorts");
+        if (topIdx !== -1 && shortIdx !== -1) {
+          updated[topIdx] = {
+            ...updated[topIdx],
+            status: "sold",
+            soldDate: now,
+            note: `Sold as set — paired with ${col} ${sale.size} shorts`
+          };
+          updated[shortIdx] = {
+            ...updated[shortIdx],
+            status: "sold",
+            soldDate: now,
+            note: `Sold as set — paired with ${col} ${sale.size} top`
+          };
+          consumed = true;
         }
       }
       // For mixed-size Set sales: create a broken piece (the leftover half)
@@ -8469,6 +8506,32 @@ CRITICAL RULES FOR COLOUR NAMES:
 - Strip duplicate colour words: "VOLT VOLT" → "Volt", "CRIMSON CRIMSON" → "Crimson"
 - Strip size words from colour: "PINE GREEN-BLACK MEDIUM-MEDIUM" → colour "Pine Green Black", size "Medium"
 
+CRITICAL COLOUR MAPPINGS (apply these exact substitutions):
+- "UNIVERSITY BLUE" → "Blue"
+- "MIDNIGHT NAVY/WHITE" or "MIDNIGHT NAVY WHITE" → "Navy"   (Kitlocker naming)
+- "UNI RED" → "Red"
+- "BRIGHT CRIMSON" → "Crimson"
+- "PINE GREEN-BLACK" → "Green/Black"
+- "TURQ WHITE" → "Turq/White"   (distinct from solid "TURQUOISE" → "Turquoise")
+- "WHITE BLACK" / "WHITE-BLACK" → "White/Black"
+- "BLACK-BLACK" → "Black"  (collapse hyphenated duplicates too)
+
+CRITICAL SIZE RULES:
+- Sizes are S, M, L, XL, XXL. "EXTRA LARGE"→XL, "X LARGE"→XL, "EXTRA EXTRA LARGE"→XXL.
+- Newitts sets show BOTH halves: "MEDIUM-MEDIUM" = top M / shorts M (a normal M set).
+- If the two halves DIFFER (e.g. "MEDIUM-LARGE", "EXTRA LARGE-LARGE") this is a
+  MIXED-SIZE set: set "size" to the TOP size and also set "shortsSize" to the shorts size.
+  For matched sizes leave "shortsSize" null.
+
+KITLOCKER INVOICES (order confirmations, not PDFs):
+- Kitlocker sells "Nike Dri-FIT Park Adult Kit Set (bundle)" made of 2 bundle items
+  (a Park III Shorts + a Park VIII/VII shirt). Treat EACH BUNDLE AS ONE itemType "set".
+  Do NOT emit the two bundle components as separate items — collapse them into one set.
+- Kitlocker uses an ORDER NUMBER not an invoice number — put it in "invoiceNumber".
+- Kitlocker cost basis is LANDED: each set's unitPriceIncVAT should be
+  (order total ÷ number of set units) so shipping and all VAT are baked in.
+  Set deliveryCharge to null for Kitlocker (shipping is already inside the unit price).
+
 Return ONLY valid JSON in this exact format, no other text:
 {
   "supplier": "string",
@@ -8485,7 +8548,8 @@ Return ONLY valid JSON in this exact format, no other text:
     {
       "description": "full product description",
       "colour": "colour name only - never include size here",
-      "size": "size only (Small/Medium/Large/XL or S/M/L/XL) - never include colour here",
+      "size": "size only (S/M/L/XL/XXL) - never include colour here",
+      "shortsSize": "for MIXED-SIZE sets only: the shorts size when it differs from size (top). Otherwise null",
       "quantity": number,
       "unitPriceOnInvoice": number,
       "unitPriceIncVAT": number,
@@ -8619,6 +8683,35 @@ Return ONLY valid JSON in this exact format, no other text:
 
   // ── Save invoice data to stock + purchases ────────────────────
   function saveInvoice() {
+    // ── DUPLICATE GUARD ──────────────────────────────────────────
+    // Two checks, both needed (July 2026 lesson: invoice-number matching alone
+    // misses manual entries that were keyed from the same invoice without a number):
+    //  1. same invoice/order number already imported
+    //  2. same DATE + same normalised item signature as an existing purchase
+    const invNo = (extractedData?.invoiceNumber || "").trim();
+    if (invNo) {
+      const clash = purchases.find(p => !p.deleted && ((p.invoiceNumber || "").trim() === invNo || (p.orderNumber || "").trim() === invNo));
+      if (clash) {
+        setError(`Invoice ${invNo} has already been imported (purchase dated ${clash.date}). Nothing was saved.`);
+        return;
+      }
+    }
+    const sigOf = items => {
+      const m = {};
+      (items || []).forEach(it => {
+        if (it.nonStock) return;
+        const k = [it.itemName || it.description || "", normaliseColour((it.colour || "").trim()), it.size || "", it.shortsSize || ""].join("|");
+        m[k] = (m[k] || 0) + (it.quantity || it.qty || 1);
+      });
+      return JSON.stringify(Object.keys(m).sort().map(k => [k, m[k]]));
+    };
+    const newSig = sigOf(lineItems);
+    const dateMatch = (extractedData?.invoiceDate || "").trim();
+    const contentClash = purchases.find(p => !p.deleted && p.date === dateMatch && sigOf(p.items) === newSig);
+    if (contentClash) {
+      setError(`This looks like a duplicate of an existing purchase dated ${contentClash.date} with identical items${contentClash.invoiceNumber ? ` (invoice ${contentClash.invoiceNumber})` : ""}. Nothing was saved.`);
+      return;
+    }
     const newStockItems = [];
     const reviewNeeded = [];
     lineItems.forEach(item => {
