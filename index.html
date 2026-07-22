@@ -15144,41 +15144,22 @@ function saveOfferStatuses(offers) {
 function useSupabase(key, initialValue, readyRef) {
   const [state, setState] = useState(initialValue);
   const isFirst = useRef(true);
-  const stateRef = useRef(state);
-  const pendingWrite = useRef(false);
   useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
-  useEffect(() => {
-    // Skip the very first render (initial value) and skip if not loaded yet
+    // Skip the very first render (initial value) and skip if not loaded yet.
+    //
+    // CRITICAL (July 2026): a write attempted before the remote load completes is
+    // based on DEFAULT/INIT state, not the user's real data. It must be DISCARDED,
+    // never queued-and-flushed. A previous "catch-up flush" here re-sent that stale
+    // pre-load state after loading finished and overwrote a freshly-imported
+    // dataset (247 stock items -> 73 INIT-derived items, all purchase links lost).
+    // Dropping a pre-load write is harmless; flushing one is destructive.
     if (isFirst.current) {
       isFirst.current = false;
       return;
     }
-    if (readyRef && !readyRef.current) {
-      // Not ready yet — do NOT drop this write. Flag it so the catch-up
-      // poller below flushes it the moment the app finishes loading.
-      pendingWrite.current = true;
-      return;
-    }
-    pendingWrite.current = false;
+    if (readyRef && !readyRef.current) return;
     supaSet(key, state);
   }, [key, state]);
-
-  // Catch-up flush: if a write was skipped while not-ready, retry once
-  // readyRef flips true. Prevents silent, permanent write loss (July 2026).
-  useEffect(() => {
-    if (!readyRef) return;
-    const interval = setInterval(() => {
-      if (!readyRef.current) return;
-      if (pendingWrite.current) {
-        pendingWrite.current = false;
-        supaSet(key, stateRef.current);
-      }
-      clearInterval(interval);
-    }, 250);
-    return () => clearInterval(interval);
-  }, [key, readyRef]);
   function setValue(value) {
     setState(prev => typeof value === "function" ? value(prev) : value);
   }
