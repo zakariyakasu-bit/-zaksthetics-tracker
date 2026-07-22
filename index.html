@@ -15213,7 +15213,13 @@ function App() {
         setSales(missing.length > 0 ? [...stored, ...missing] : stored);
       }
       // Stock — use stored if version matches, else migrate from DRI_STOCK
-      if (remote.zak_stock && remote.zak_stock_version === CURRENT_VERSION) {
+      // NOTE: compare as STRINGS. The import path runs parseVal() which does
+      // JSON.parse on string values, so the exported version "9" comes back as the
+      // NUMBER 9. A strict === against the string CURRENT_VERSION then fails, the
+      // app decides stored stock is stale, and REBUILDS IT FROM INIT — silently
+      // destroying every purchase-linked stock item on import (July 2026 incident:
+      // 247 items -> 73, all purchaseIds lost). Never make this comparison strict.
+      if (remote.zak_stock && String(remote.zak_stock_version) === String(CURRENT_VERSION)) {
         let fixedStock = remote.zak_stock.map(s => {
           const trimmed = (s.colour || "").trim();
           const normalised = normaliseColour(trimmed);
@@ -15664,8 +15670,19 @@ function App() {
     onClick: async () => {
       // Handle old-format backups: values may be JSON strings (from old localStorage export)
       // or already parsed objects (from new Supabase export)
+      // parseVal: exported values are JSON-encoded strings. BUT a bare scalar like
+      // the version "9" would JSON.parse into the NUMBER 9, breaking the version
+      // gate on next load and triggering a destructive INIT stock rebuild.
+      // Only parse things that are actually JSON objects/arrays; leave scalars alone.
       function parseVal(v) {
-        return typeof v === "string" ? JSON.parse(v) : v;
+        if (typeof v !== "string") return v;
+        const t = v.trim();
+        if (!(t.startsWith("[") || t.startsWith("{"))) return v;
+        try {
+          return JSON.parse(v);
+        } catch (e) {
+          return v;
+        }
       }
       // Handle old-format backups: rebuild zak_stock from zak_dri_stock + zak_chinese
       let importData = {
